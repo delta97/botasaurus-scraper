@@ -1,0 +1,147 @@
+---
+title: "Testing"
+description: "Turn recipes into a stealth end-to-end test suite: rich assertions, visual regression, grouped suites with JUnit XML for CI, run diffing, and failure webhooks."
+---
+
+Because the studio drives a real anti-detect browser, it can do something
+Playwright and Cypress can't: run end-to-end tests against **bot-protected
+sites**. Add assertions to a recipe, group recipes into a suite, and you have a
+test runner that plugs straight into CI.
+
+## Assertions
+
+The `assert` step verifies the page. Provide one or more checks — **all** of them
+must pass, and a failure reports the actual value so you can see what changed.
+
+<CodeGroup>
+```yaml Presence & text
+- { type: assert, selector: "#thanks" }                      # element exists
+- { type: assert, text_contains: "Order received" }          # anywhere on page
+- { type: assert, selector: "h1", text_equals: "Checkout" }   # exact text
+```
+```yaml Attributes, counts & URL
+- { type: assert, selector: "a.cta", attribute: "href", attribute_equals: "/buy" }
+- { type: assert, selector: ".product-card", count: 12 }       # exactly 12
+- { type: assert, url_matches: "/orders/[0-9]+$" }             # regex on URL
+```
+</CodeGroup>
+
+<ParamField path="message" type="string">
+  A custom failure message, prepended to the detail. e.g. `message: "cart should
+  have 3 items"` → `cart should have 3 items (found 2 elements ...)`.
+</ParamField>
+
+## Visual regression
+
+The `assert_screenshot` step catches changes that text checks miss — layout shifts,
+broken images, restyled components.
+
+```yaml
+- { type: navigate, url: "https://example.com/pricing" }
+- { type: assert_screenshot, name: pricing-page, threshold: 0.01 }
+```
+
+<Steps>
+  <Step title="First run captures the baseline">
+    With no baseline yet, the step saves the current screenshot as the reference
+    and passes.
+  </Step>
+  <Step title="Later runs compare against it">
+    Each run pixel-diffs against the baseline. If more than `threshold` of pixels
+    differ (default 1%), the step fails and writes a **diff image** highlighting
+    exactly what changed.
+  </Step>
+  <Step title="Re-baseline intentionally">
+    When a change is expected, set `update_baseline: true` for one run to adopt the
+    new look.
+  </Step>
+</Steps>
+
+<Tip>
+Scope a visual check to one component with a `selector` (e.g. `selector: ".price-
+table"`) so unrelated page changes don't make it flap. Pin a `window_size` in the
+recipe's Botasaurus config so the baseline and comparison render at the same size.
+</Tip>
+
+## Test suites
+
+A **suite** is an ordered group of recipes run sequentially with aggregate
+pass/fail. Create one from the **Test Suites** tab, add recipes, and hit **Run
+suite**.
+
+```bash
+# create a suite, add two recipes, run it
+SID=$(curl -s -X POST localhost:8000/api/suites \
+  -H "Content-Type: application/json" -d '{"name":"checkout-smoke"}' | jq .suite_id)
+
+curl -X POST localhost:8000/api/suites/$SID/recipes \
+  -H "Content-Type: application/json" -d '{"recipe_id": 3}'
+curl -X POST localhost:8000/api/suites/$SID/recipes \
+  -H "Content-Type: application/json" -d '{"recipe_id": 4, "variables": {"zip": "10001"}}'
+
+curl -X POST localhost:8000/api/suites/$SID/run    # → { "suite_run_id": 1 }
+```
+
+Each recipe in the suite runs as its own child run with a full timeline, so a
+failure points you straight at the offending step.
+
+## JUnit XML for CI
+
+Every suite run exports a JUnit report — the format GitHub Actions, GitLab, and
+Jenkins all understand:
+
+```bash
+curl "localhost:8000/api/suites/1/runs/1/junit.xml" -o results.xml
+```
+
+```yaml GitHub Actions
+- name: Run stealth E2E suite
+  run: |
+    uvicorn backend.main:app --port 8000 &
+    sleep 5
+    SR=$(curl -s -X POST localhost:8000/api/suites/1/run | jq .suite_run_id)
+    # poll until the suite finishes, then fetch the report
+    curl "localhost:8000/api/suites/1/runs/$SR/junit.xml" -o results.xml
+- uses: dorny/test-reporter@v1
+  with:
+    name: E2E
+    path: results.xml
+    reporter: java-junit
+```
+
+## Run diffing
+
+When a test starts failing, compare the failing run against a known-good one:
+
+```bash
+curl localhost:8000/api/runs/41/diff/42
+```
+
+You get a per-step diff (status, selector, duration changes) and which extracted
+values differ — the quickest path from "it broke" to "this step is why."
+
+## Recipe chaining
+
+Within a suite, a recipe's string extracts flow into later recipes as variables.
+This lets you split a long flow into reusable pieces:
+
+```yaml
+# Recipe A: "create-order" — extracts the new order id
+- { type: extract_text, selector: ".order-id", into: order_id }
+
+# Recipe B: "verify-order" (later in the same suite) — uses it
+- { type: navigate, url: "https://example.com/orders/{{order_id}}" }
+- { type: assert, selector: ".status", text_equals: "Confirmed" }
+```
+
+## Failure notifications
+
+Set a **webhook URL** in Settings (Slack and Discord incoming webhooks work as-is)
+and the studio POSTs a JSON summary whenever a run or suite **fails** — so a broken
+nightly suite reaches you without you watching the dashboard.
+
+<Note>
+The payload includes both a `text` field (Slack) and a `content` field (Discord),
+plus structured fields (`status`, `error`, `run_id`/`suite_run_id`), so one URL
+works across tools.
+</Note>

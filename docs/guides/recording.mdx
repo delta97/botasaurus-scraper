@@ -1,0 +1,142 @@
+---
+title: "Recording with the Chrome Extension"
+description: "Capture a flow by clicking through it in your own logged-in Chrome. No AI, no tokens — and undetectable, because the recording is really you."
+---
+
+The recorder is the highest-leverage way to create automations. You perform the
+flow once, as yourself, in your normal browser; the extension watches and emits a
+recipe. Because you're a real human in a real session, there's nothing for a site
+to flag — and the resulting recipe replays in Botasaurus's stealth Chrome.
+
+<Note>
+**Record as a human, replay as a robot.** This is the core idea of the whole
+studio, and the extension is where it begins.
+</Note>
+
+## Install the extension
+
+The extension ships unpacked in the [`extension/`](https://github.com/delta97/botasaurus-scraper/tree/main/extension)
+folder — no Web Store needed.
+
+<Steps>
+  <Step title="Get a pairing token">
+    In the studio, open **Settings → Chrome extension recorder** and copy the
+    pairing token.
+  </Step>
+  <Step title="Load it in Chrome">
+    Go to `chrome://extensions`, enable **Developer mode**, click **Load
+    unpacked**, and select the `extension/` folder.
+  </Step>
+  <Step title="Connect it to the studio">
+    Open the extension's **connection settings**, paste the studio URL
+    (`http://127.0.0.1:8000`) and the pairing token, and hit **Test connection**.
+  </Step>
+</Steps>
+
+<Info>
+Writes from the extension are gated by the pairing token (sent as an
+`X-Studio-Token` header) and CORS is locked to the extension's origin — so even
+though the studio runs without a login, a random web page can't post recipes to it.
+</Info>
+
+## Record a flow
+
+<Steps>
+  <Step title="Hit Record">
+    Click the extension icon, then **● Record**. A badge shows it's capturing.
+  </Step>
+  <Step title="Do the thing">
+    Fill forms, click buttons, follow links — across multiple pages and even
+    multiple sites. The extension captures clicks, typing, dropdown selections,
+    and form submits.
+  </Step>
+  <Step title="Stop and review">
+    Click **■ Stop**. Review the captured steps: delete any noise, edit a value, or
+    click **🔒 var** to turn a typed value into a `{{variable}}`.
+  </Step>
+  <Step title="Save to Studio">
+    Name it and click **Save to Studio**. It appears in your Recipes list, ready to
+    replay.
+  </Step>
+</Steps>
+
+## What gets captured intelligently
+
+The recorder isn't a dumb event logger — it produces replay-ready recipes:
+
+<AccordionGroup>
+  <Accordion title="Debounced typing" icon="keyboard">
+    A burst of keystrokes in one field becomes a single `type` step with the final
+    value — not one step per character.
+  </Accordion>
+  <Accordion title="Sensitive fields become variables" icon="lock">
+    Password, one-time-code, and credit-card fields are detected and converted to
+    `{{variables}}` automatically. Their values are **never** stored in the recipe —
+    you supply them at replay time.
+  </Accordion>
+  <Accordion title="Smart navigation" icon="route">
+    The first page load and any **manual** navigation (you typed a new URL) become
+    `navigate` steps. Navigations caused by a click you already recorded are left
+    implicit — the click reproduces them on replay, so you don't double-navigate.
+  </Accordion>
+  <Accordion title="Robust selectors" icon="crosshairs">
+    Each interaction is recorded with a priority-ranked selector plus fallbacks,
+    using the exact same ladder as the backend (a stable id beats a positional
+    path). Drift between record and replay is prevented by a shared spec and
+    parity tests.
+  </Accordion>
+  <Accordion title="Healing hints" icon="kit-medical">
+    Each step also stores the element's label, text, and tag, so
+    [self-healing](/guides/self-healing) can relocate it later if the selector breaks.
+  </Accordion>
+</AccordionGroup>
+
+## A recorded recipe
+
+A login-then-search flow might come out like this (note the password is a variable
+with no stored value):
+
+```yaml
+name: login-and-search
+variables:
+  - { name: username, default: "" }
+  - { name: password, default: "" }
+  - { name: query, default: "automation" }
+steps:
+  - { type: navigate, url: "https://example.com/login" }
+  - { type: type, selector: "#username", value: "{{username}}" }
+  - { type: type, selector: "#password", value: "{{password}}" }
+  - { type: click, selector: "button[type='submit']" }
+  - { type: wait_for, selector: "nav.app-header" }
+  - { type: type, selector: "input[name='q']", value: "{{query}}" }
+  - { type: click, selector: "button[aria-label='Search']" }
+```
+
+## Logins and sessions
+
+For flows behind a login, pair recording with a **persistent profile** so you only
+authenticate once:
+
+<Steps>
+  <Step title="Record the login once">
+    Set a `profile` name in the recipe's Botasaurus config (e.g. `profile: gmail-work`).
+  </Step>
+  <Step title="Reuse the session">
+    Subsequent replays load that profile's cookies and skip the login entirely —
+    the most detection-resistant pattern, since there's no repeated login automation
+    to flag.
+  </Step>
+</Steps>
+
+<Tip>
+The extension records in **your** browser, but recipes replay in Botasaurus's
+browser. A recipe that depends on being logged in needs either a `profile` or
+explicit login steps with `{{username}}`/`{{password}}` variables.
+</Tip>
+
+## Frames and shadow DOM
+
+When you interact with an element inside a same-origin `<iframe>` (or a shadow-DOM
+component), the recorder captures a `frame_path` so the replayer can step into the
+frame before acting. Cross-origin iframes aren't reachable by selector and are out
+of scope.

@@ -1,0 +1,108 @@
+---
+title: "Runs & the Agent"
+description: "What happens when you execute something: the two kinds of runs, the autonomous agent loop, and the deep logging that lets you reverse-engineer any failure."
+---
+
+## Two kinds of runs
+
+Everything that drives a browser produces a **run** you can inspect:
+
+<CardGroup cols={2}>
+  <Card title="Agent run" icon="wand-magic-sparkles">
+    Created from **New Task**. An LLM-driven loop figures out the steps from your
+    natural-language goal. Produces a recipe you can save.
+  </Card>
+  <Card title="Replay run" icon="repeat">
+    A deterministic execution of a saved recipe. **No AI** (unless self-healing is
+    on). This is what schedules, datasets, suites, and the CLI all run.
+  </Card>
+</CardGroup>
+
+A run moves through these statuses:
+
+```text
+queued → running → succeeded | failed | cancelled | max_steps
+```
+
+## The agent loop
+
+When you start an AI task, the agent runs **inside a single Botasaurus browser
+session** and repeats this loop (up to a step cap) until it calls `finish`:
+
+<Steps>
+  <Step title="Snapshot">
+    Parse the page into a compact representation: interactive elements with short
+    ids (`e7`), labels, and generated selectors, plus a text outline. Hard-capped
+    around 6 KB so token usage stays low.
+  </Step>
+  <Step title="Try deterministic shortcuts">
+    If the intent is "extract the page as markdown," do it in pure Python. If the
+    model already returned a multi-field `fill_form` plan, execute the whole batch
+    without asking again. If a selector fails, retry fallbacks first.
+  </Step>
+  <Step title="Ask the LLM (only if needed)">
+    Send the system prompt, the goal, the current snapshot, and a one-line history
+    of past actions. The model replies with exactly one tool call — `click`,
+    `type`, `fill_form`, `select_option`, `scroll`, `extract_markdown`, `finish`, …
+  </Step>
+  <Step title="Execute and record">
+    Map the chosen action to a Botasaurus `Driver` call, log the step (with a
+    screenshot), and append it to the recipe being recorded.
+  </Step>
+</Steps>
+
+<Note>
+The loop sends **only the current snapshot** each turn — never the full history of
+past pages. Old context is compressed to one-line summaries, which keeps long
+tasks affordable.
+</Note>
+
+## Deep logging
+
+Every run is logged exhaustively so failures are debuggable after the fact:
+
+<AccordionGroup>
+  <Accordion title="Step timeline" icon="list-ol">
+    Each step records its action, resolved selector, value, status, duration, and
+    a screenshot. Failed steps show the error inline.
+  </Accordion>
+  <Accordion title="LLM calls" icon="comments">
+    The complete request (including the page snapshot), the raw response, the
+    chosen tool call, prompt/completion token counts, and latency — for every call.
+  </Accordion>
+  <Accordion title="Result" icon="box-archive">
+    Extracted content (keyed by your `into` names), a final summary, and token
+    totals for the whole run.
+  </Accordion>
+</AccordionGroup>
+
+Pull any of it from the API:
+
+```bash
+curl localhost:8000/api/runs/42                 # run + result + token totals
+curl localhost:8000/api/runs/42/steps           # the step timeline
+curl localhost:8000/api/runs/42/llm_calls        # full prompts and responses
+curl localhost:8000/api/runs/42/screenshots/3 -o step3.png
+```
+
+## Comparing runs
+
+Replayed the same recipe twice and something changed? Open a run and click
+**Compare with run #N** for a side-by-side diff of every step's status, selector,
+and duration, plus which extracted values differ.
+
+```bash
+curl localhost:8000/api/runs/41/diff/42
+```
+
+This is the fastest way to spot a regression: a step that flipped from `ok` to
+`error`, or a duration that ballooned, jumps right out.
+
+## Cancelling
+
+A running agent run or replay can be cancelled from the UI or the API. The cancel
+is checked before each step, so it stops cleanly and the run ends `cancelled`:
+
+```bash
+curl -X POST localhost:8000/api/runs/42/cancel
+```

@@ -1,0 +1,213 @@
+---
+title: "Recipe DSL Reference"
+description: "Every field of the recipe format and every step type, with their parameters."
+---
+
+The canonical recipe format. Stored as JSON in the database; YAML is an
+interchangeable export/authoring format.
+
+## Top-level fields
+
+<ResponseField name="version" type="integer" default="1">
+  Recipe schema version. Bumped automatically when a self-heal patches a selector.
+</ResponseField>
+<ResponseField name="name" type="string" required>
+  Human-readable recipe name.
+</ResponseField>
+<ResponseField name="description" type="string">
+  Optional longer description.
+</ResponseField>
+<ResponseField name="variables" type="object[]">
+  Declared inputs. Each is `{ name, default, description? }`. Referenced as
+  `{{name}}` in steps.
+</ResponseField>
+<ResponseField name="botasaurus" type="object">
+  Browser configuration applied at replay. See [Botasaurus
+  Config](/reference/botasaurus-config).
+</ResponseField>
+<ResponseField name="output_format" type="string" default="json">
+  `json` (structured extracts) or `markdown` (whole final page as markdown).
+</ResponseField>
+<ResponseField name="steps" type="object[]" required>
+  The ordered list of actions.
+</ResponseField>
+<ResponseField name="selector_spec_version" type="integer">
+  Version of the selector ladder the recipe was recorded with. The backend warns
+  if it doesn't match the server's, surfacing drift after an extension upgrade.
+</ResponseField>
+<ResponseField name="source" type="string">
+  Provenance: `agent` (recorded from an AI run) or `extension` (recorded in your
+  browser).
+</ResponseField>
+
+## Universal step options
+
+Every step supports these:
+
+<ResponseField name="type" type="string" required>
+  The step type (see below).
+</ResponseField>
+<ResponseField name="optional" type="boolean" default="false">
+  If `true`, a failure is logged and skipped instead of aborting the run.
+</ResponseField>
+<ResponseField name="wait" type="integer">
+  Seconds to wait for the element (default 8).
+</ResponseField>
+<ResponseField name="timeout" type="integer">
+  Seconds to wait, for `wait_for` / `assert`.
+</ResponseField>
+<ResponseField name="frame_path" type="string[]">
+  Ordered selectors from the top document down to the element's same-origin iframe
+  or shadow-DOM host. Empty = top document.
+</ResponseField>
+<ResponseField name="selector_fallbacks" type="string[]">
+  Alternate selectors tried in order if the primary fails.
+</ResponseField>
+<ResponseField name="element_label / element_text / tag / input_type" type="string">
+  Recorded hints used by self-healing to relocate a broken element.
+</ResponseField>
+
+## Step types
+
+<AccordionGroup>
+  <Accordion title="navigate" icon="compass">
+    Go to a URL.
+    ```yaml
+    - { type: navigate, url: "https://example.com", bypass_cloudflare: false }
+    ```
+    <ResponseField name="url" type="string" required>Target URL (supports `{{vars}}`).</ResponseField>
+    <ResponseField name="bypass_cloudflare" type="boolean">Attempt Cloudflare challenge handling.</ResponseField>
+  </Accordion>
+
+  <Accordion title="click" icon="arrow-pointer">
+    Click an element.
+    ```yaml
+    - { type: click, selector: "button[type='submit']" }
+    ```
+    <ResponseField name="selector" type="string" required>CSS selector.</ResponseField>
+  </Accordion>
+
+  <Accordion title="type" icon="keyboard">
+    Type into an input or textarea (replaces existing value).
+    ```yaml
+    - { type: type, selector: "input[name='email']", value: "{{email}}" }
+    ```
+    <ResponseField name="selector" type="string" required />
+    <ResponseField name="value" type="string" required>Text to type (supports `{{vars}}`).</ResponseField>
+  </Accordion>
+
+  <Accordion title="select_option" icon="list-check">
+    Choose a `<select>` option by value or visible label.
+    ```yaml
+    - { type: select_option, selector: "select[name='size']", value: "medium" }
+    - { type: select_option, selector: "select[name='size']", label: "Medium" }
+    ```
+    <ResponseField name="selector" type="string" required />
+    <ResponseField name="value" type="string">Option `value` attribute.</ResponseField>
+    <ResponseField name="label" type="string">Visible option text (alternative to `value`).</ResponseField>
+  </Accordion>
+
+  <Accordion title="wait_for" icon="hourglass">
+    Wait until an element appears.
+    ```yaml
+    - { type: wait_for, selector: "#results", timeout: 16 }
+    ```
+    <ResponseField name="selector" type="string" required />
+  </Accordion>
+
+  <Accordion title="scroll" icon="arrows-up-down">
+    Scroll the page or an element into view.
+    ```yaml
+    - { type: scroll, to: bottom }
+    - { type: scroll, selector: ".load-more" }
+    ```
+    <ResponseField name="to" type="string">`bottom` or `down`.</ResponseField>
+    <ResponseField name="selector" type="string">Scroll this element into view instead.</ResponseField>
+  </Accordion>
+
+  <Accordion title="extract_markdown / extract_text" icon="file-lines">
+    Capture page (or element) content into the run result. Pure Python — no AI.
+    ```yaml
+    - { type: extract_markdown, into: article }
+    - { type: extract_text, selector: "#summary", into: summary }
+    ```
+    <ResponseField name="selector" type="string">Optional; default is the whole page.</ResponseField>
+    <ResponseField name="into" type="string">Result key to store under.</ResponseField>
+  </Accordion>
+
+  <Accordion title="screenshot" icon="camera">
+    Save a screenshot.
+    ```yaml
+    - { type: screenshot, name: before-submit }
+    ```
+    <ResponseField name="name" type="string">File name stem.</ResponseField>
+  </Accordion>
+
+  <Accordion title="run_js" icon="code">
+    Run JavaScript in the page as a last resort.
+    ```yaml
+    - { type: run_js, script: "return document.title", into: page_title }
+    ```
+    <ResponseField name="script" type="string" required>JS to evaluate (supports `{{vars}}`).</ResponseField>
+    <ResponseField name="into" type="string">Store the return value under this key.</ResponseField>
+  </Accordion>
+
+  <Accordion title="assert" icon="circle-check">
+    Verify the page. Provide one or more checks; **all** must pass.
+    ```yaml
+    - { type: assert, selector: "#thanks" }
+    - { type: assert, selector: "h1", text_equals: "Checkout" }
+    - { type: assert, selector: ".item", count: 3 }
+    - { type: assert, url_matches: "/orders/[0-9]+$" }
+    ```
+    <ResponseField name="selector" type="string">Element to check / scope.</ResponseField>
+    <ResponseField name="text_contains" type="string">Page contains this text.</ResponseField>
+    <ResponseField name="text_equals" type="string">Element's text equals this (needs `selector`).</ResponseField>
+    <ResponseField name="attribute / attribute_equals" type="string">Element attribute presence / exact value.</ResponseField>
+    <ResponseField name="count" type="integer">Exact number of elements matching `selector`.</ResponseField>
+    <ResponseField name="url_matches" type="string">Regex tested against the current URL.</ResponseField>
+    <ResponseField name="message" type="string">Custom failure message.</ResponseField>
+  </Accordion>
+
+  <Accordion title="assert_screenshot" icon="image">
+    Visual regression against a stored baseline.
+    ```yaml
+    - { type: assert_screenshot, name: pricing, threshold: 0.01 }
+    ```
+    <ResponseField name="name" type="string" required>Baseline name.</ResponseField>
+    <ResponseField name="selector" type="string">Capture one element instead of the page.</ResponseField>
+    <ResponseField name="threshold" type="number" default="0.01">Allowed fraction of differing pixels (0–1).</ResponseField>
+    <ResponseField name="update_baseline" type="boolean">Overwrite the baseline with this capture.</ResponseField>
+  </Accordion>
+</AccordionGroup>
+
+## Full example
+
+```yaml
+version: 1
+name: modernize-lead-form
+description: Submit a lead and verify the confirmation
+variables:
+  - { name: first_name, default: "John" }
+  - { name: email, default: "john@example.com" }
+  - { name: zip, default: "94107" }
+botasaurus:
+  headless: true
+  block_images: true
+  human_mode: true
+  window_size: "1280,800"
+output_format: json
+steps:
+  - { type: navigate, url: "https://example.com" }
+  - { type: click, selector: "a[href*='windows']" }
+  - { type: type, selector: "input[name='zip']", value: "{{zip}}" }
+  - { type: click, selector: "button[type='submit']" }
+  - { type: wait_for, selector: "input[name='first_name']", timeout: 16 }
+  - { type: type, selector: "input[name='first_name']", value: "{{first_name}}" }
+  - { type: type, selector: "input[name='email']", value: "{{email}}" }
+  - { type: select_option, selector: "select[name='project_type']", value: "replacement" }
+  - { type: screenshot, name: before-submit }
+  - { type: click, selector: "button.submit-lead" }
+  - { type: assert, selector: ".thank-you", timeout: 16, message: "no confirmation" }
+  - { type: extract_markdown, into: confirmation }
+```

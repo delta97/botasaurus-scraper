@@ -1,0 +1,111 @@
+---
+title: "Datasets (CSV Batch)"
+description: "Run a recipe once per row of a CSV, mapping columns to variables. Fill a form for 500 leads, or scrape a list of URLs, with one upload."
+---
+
+A **dataset run** executes a recipe once for every row of a CSV, mapping each
+column header to a recipe variable. It's the right tool for "do this same thing
+with many different inputs."
+
+## How it maps
+
+Your CSV's **column headers** must match the recipe's **variable names**. Each row
+becomes one child run with that row's values.
+
+<CodeGroup>
+```csv leads.csv
+first_name,last_name,email,zip
+Ada,Lovelace,ada@example.com,94107
+Grace,Hopper,grace@example.com,10001
+Alan,Turing,alan@example.com,90210
+```
+```yaml recipe variables
+variables:
+  - { name: first_name, default: "" }
+  - { name: last_name,  default: "" }
+  - { name: email,      default: "" }
+  - { name: zip,        default: "" }
+```
+</CodeGroup>
+
+Running this dataset against a lead-form recipe submits the form three times — once
+per person.
+
+## Uploading
+
+From the recipe page, use the **Dataset** section to upload a CSV. Or via the API:
+
+```bash
+curl -X POST localhost:8000/api/recipes/1/batch/csv \
+  -F "file=@leads.csv"
+# → { "batch_run_id": 5, "rows": 3 }
+```
+
+Prefer to pass rows directly (e.g. from another script)? Post JSON:
+
+```bash
+curl -X POST localhost:8000/api/recipes/1/batch \
+  -H "Content-Type: application/json" \
+  -d '{ "rows": [ {"zip": "10001"}, {"zip": "90210"} ] }'
+```
+
+## Watching progress
+
+A batch is a parent with one child run per row. Poll the parent for aggregate
+counts, and open any child for its full step timeline:
+
+```bash
+curl localhost:8000/api/recipes/1/batch/5
+```
+
+```json
+{
+  "id": 5, "status": "done", "total": 3, "succeeded": 3, "failed": 0,
+  "children": [
+    { "run_id": 51, "status": "succeeded", "row": { "first_name": "Ada", ... } },
+    { "run_id": 52, "status": "succeeded", "row": { "first_name": "Grace", ... } },
+    { "run_id": 53, "status": "succeeded", "row": { "first_name": "Alan", ... } }
+  ]
+}
+```
+
+Rows run **sequentially** (one Chrome at a time), so a 500-row dataset is paced,
+not a thundering herd — which is also gentler on the target site.
+
+## Cancelling
+
+Stop a long batch mid-flight; rows already finished keep their results, the rest
+are skipped:
+
+```bash
+curl -X POST localhost:8000/api/recipes/1/batch/5/cancel
+```
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Add an assertion so failures are real" icon="circle-check">
+    End the recipe with an `assert` on the success page. Without it, a row that
+    silently did nothing still counts as "succeeded." With it, your
+    `succeeded`/`failed` counts mean something.
+  </Accordion>
+  <Accordion title="Use a UTF-8 CSV with a header row" icon="file-csv">
+    The first row is treated as column names. A byte-order mark is handled
+    automatically. Empty cells become empty strings.
+  </Accordion>
+  <Accordion title="Test on a few rows first" icon="flask">
+    Upload a 2–3 row CSV to confirm the mapping and selectors are right before you
+    turn loose a thousand-row file.
+  </Accordion>
+  <Accordion title="Combine with self-healing for resilience" icon="bandage">
+    On a big batch, enabling [self-healing](/guides/self-healing) in auto mode means
+    one mid-run site tweak won't fail every remaining row.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+Datasets make it easy to hit a site many times. Use them only where you're
+authorized to, respect rate limits and terms of service, and prefer a real account
+with a [profile](/guides/stealth#profiles-persistent-logins) over hammering
+anonymous endpoints.
+</Warning>

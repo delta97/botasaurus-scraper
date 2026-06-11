@@ -1,0 +1,110 @@
+---
+title: "The CLI Runner"
+description: "Replay recipes from the command line — no browser UI, no API key. Perfect for cron, CI pipelines, and shell scripts."
+---
+
+`backend.runner` replays a recipe headlessly from the command line. It uses the
+same deterministic engine as the UI's replay, so behavior is identical — but with
+no server, no UI, and (by default) no AI.
+
+## Basic usage
+
+<CodeGroup>
+```bash From a saved recipe (by id)
+python -m backend.runner --recipe-id 3
+```
+```bash From a YAML/JSON file
+python -m backend.runner recipe.yaml
+```
+```bash With variable overrides
+python -m backend.runner --recipe-id 3 \
+  --var first_name=Jane --var email=jane@example.com
+```
+</CodeGroup>
+
+## Flags
+
+<ParamField path="recipe_file" type="path">
+  A `.yaml` or `.json` recipe file to run. Either this or `--recipe-id` is required.
+</ParamField>
+<ParamField path="--recipe-id" type="int">
+  Load the recipe from the studio's database instead of a file.
+</ParamField>
+<ParamField path="--var" type="name=value">
+  Override a variable. Repeatable: `--var a=1 --var b=2`.
+</ParamField>
+<ParamField path="--self-heal" type="flag">
+  Enable AI selector repair. Needs an API key in the app database; warns and
+  continues AI-free if none is configured.
+</ParamField>
+<ParamField path="--headless" type="flag">
+  Force headless mode regardless of the recipe's config.
+</ParamField>
+<ParamField path="--out" type="path">
+  Write the result JSON to a file instead of stdout.
+</ParamField>
+<ParamField path="--no-log" type="flag">
+  Don't record this run in the app database (pure file mode).
+</ParamField>
+
+## Clean, pipeable output
+
+The result JSON goes to **stdout**; progress and Botasaurus's own chatter go to
+**stderr**. So you can pipe straight into `jq`:
+
+```bash
+python -m backend.runner --recipe-id 3 --var zip=10001 | jq '.extracts'
+```
+
+```json
+{
+  "success": true,
+  "error": null,
+  "extracts": { "confirmation": "Thank you Jane! We received your request." },
+  "steps_executed": 8,
+  "heals": 0
+}
+```
+
+The process **exit code** is `0` on success and `1` on failure, so it works in any
+shell pipeline or CI step:
+
+```bash
+if python -m backend.runner --recipe-id 3 --no-log > /dev/null; then
+  echo "recipe passed"
+else
+  echo "recipe failed" && exit 1
+fi
+```
+
+## In cron
+
+By default the runner records its run in the database, so scheduled runs appear in
+the studio's history. A typical crontab entry:
+
+```cron
+*/30 * * * * cd /path/to/botasaurus-scraper && \
+  /usr/bin/python3 -m backend.runner --recipe-id 1 >> /var/log/recipe1.log 2>&1
+```
+
+Add `--no-log` if you'd rather keep cron runs out of the studio DB entirely.
+
+## In CI
+
+The CLI is the simplest way to gate a deploy on a real browser check:
+
+```yaml GitHub Actions
+- name: Smoke-test the live site
+  run: |
+    python -m backend.runner recipes/checkout-smoke.yaml \
+      --var base_url="${{ env.STAGING_URL }}"
+```
+
+A non-zero exit fails the job. Pair it with an `assert` step in the recipe so the
+check actually verifies the page reached the expected state.
+
+<Tip>
+Keep your recipes as YAML files in the repo and run them with the file form
+(`runner recipe.yaml`). They version-control cleanly, review like code, and need
+no database to run.
+</Tip>

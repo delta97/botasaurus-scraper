@@ -1,0 +1,128 @@
+---
+title: "Best Practices"
+description: "Hard-won guidance for building automations that stay reliable, stay undetected, and stay safe."
+---
+
+## Choosing how to build a recipe
+
+<CardGroup cols={3}>
+  <Card title="Record it" icon="circle-dot">
+    Known flow, behind a login, or you want zero token cost. The extension is the
+    default choice.
+  </Card>
+  <Card title="Describe it" icon="wand-magic-sparkles">
+    Unfamiliar site, variable layout, or you're prototyping. Let the agent draft a
+    recipe, then refine it.
+  </Card>
+  <Card title="Hand-write it" icon="pen">
+    You know the exact selectors and want full control — author the YAML directly
+    and import it.
+  </Card>
+</CardGroup>
+
+## Selectors that survive
+
+The whole recipe rests on selectors. Make them durable:
+
+<AccordionGroup>
+  <Accordion title="Prefer meaning over position" icon="crosshairs">
+    `[name=email]`, `[data-testid=submit]`, and `#stable-id` survive redesigns;
+    `div:nth-child(3) > span` does not. The recorder already prefers the former — if
+    you hand-write, do the same.
+  </Accordion>
+  <Accordion title="Keep the fallbacks" icon="layer-group">
+    Recorded recipes carry `selector_fallbacks`. They're free insurance, tried with
+    no AI before self-healing. Don't strip them when editing.
+  </Accordion>
+  <Accordion title="Distrust generated ids" icon="ban">
+    Ids like `:r7:`, `ember1043`, or `a3f8b2c9` change every build. The selector
+    engine rejects them automatically; watch for them if you're writing selectors
+    by hand.
+  </Accordion>
+</AccordionGroup>
+
+## Spend AI wisely
+
+<Steps>
+  <Step title="Extract without the model">
+    When you just want content, use `extract_markdown`/`extract_text` (in a recipe)
+    or say "extract as markdown" (in an agent goal). It runs in pure Python.
+  </Step>
+  <Step title="Match the model to the job">
+    Use a cheap model for clean, structured sites; reserve a stronger one for messy
+    layouts. Set it per task in Settings.
+  </Step>
+  <Step title="Convert agent runs to recipes early">
+    The first successful agent run is a draft. Save it as a recipe and replay that —
+    you stop paying for AI on every subsequent run.
+  </Step>
+  <Step title="Enable self-healing, don't rely on it">
+    It's a safety net for drift, not a substitute for good selectors. Most changes
+    should be caught by fallbacks first.
+  </Step>
+</Steps>
+
+## Make tests trustworthy
+
+<AccordionGroup>
+  <Accordion title="Always assert the outcome" icon="circle-check">
+    A run that "succeeded" only means no step errored. Add an `assert` on the real
+    success state (a confirmation, a URL, an element count) so success means success.
+  </Accordion>
+  <Accordion title="Scope visual checks" icon="image">
+    `assert_screenshot` on a whole page flaps on any unrelated change. Target a
+    component with a `selector`, and pin `window_size` so renders are consistent.
+  </Accordion>
+  <Accordion title="Diff before you debug" icon="code-compare">
+    When a suite goes red, diff the failing run against the last green one. The
+    changed step is usually the whole story.
+  </Accordion>
+</AccordionGroup>
+
+## Stay undetected, responsibly
+
+<Steps>
+  <Step title="Create as a human">
+    Record flows and establish logins in your real browser. Nothing beats not
+    needing a replay-time trick.
+  </Step>
+  <Step title="Reuse sessions">
+    A persistent `profile` carries real cookies and history — far less suspicious
+    than a fresh anonymous session every run.
+  </Step>
+  <Step title="Pace yourself">
+    Runs go one browser at a time by default. Keep it that way for datasets; a
+    paced, logged-in human is the goal, not a burst of requests.
+  </Step>
+  <Step title="Layer the signals">
+    `human_mode` + `google_referer` + a profile together look far more natural than
+    any one alone.
+  </Step>
+</Steps>
+
+## Operate it safely
+
+<Warning>
+The studio has **no authentication** and binds localhost. The agent can run
+arbitrary JavaScript (`run_js`) and recipes can submit real data. Don't expose it
+to untrusted networks, review what a recipe does before scheduling it unattended,
+and only automate sites you're authorized to use.
+</Warning>
+
+<AccordionGroup>
+  <Accordion title="Treat the pairing token as a secret" icon="key">
+    It authorizes recipe creation. Regenerate it from Settings if it leaks.
+  </Accordion>
+  <Accordion title="The API key is obfuscated, not encrypted" icon="lock">
+    At-rest storage protects against a casual DB dump, not a determined attacker
+    with file access. Secure the host accordingly.
+  </Accordion>
+  <Accordion title="Version-control your recipes" icon="code-branch">
+    Export recipes to YAML and commit them. They review like code and make every
+    automation auditable.
+  </Accordion>
+  <Accordion title="Wire up failure webhooks" icon="bell">
+    For anything scheduled, a Slack/Discord webhook turns a silent 3am failure into
+    a notification you'll actually see.
+  </Accordion>
+</AccordionGroup>

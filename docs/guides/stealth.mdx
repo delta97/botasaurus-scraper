@@ -1,0 +1,114 @@
+---
+title: "Stealth & Anti-Detection"
+description: "The whole point of building on Botasaurus: replay automations without getting flagged. Humanized cursor, Google-referer navigation, persistent logins, and proxies."
+---
+
+Sites detect automation through dozens of signals — headless fingerprints, robotic
+mouse paths, missing referers, fresh sessions with no history. The studio exposes
+Botasaurus's countermeasures as plain config you can toggle per recipe.
+
+<Note>
+This is for **responsible** automation — testing your own apps, scraping you're
+authorized to do, automating your own accounts. The goal is to not get
+false-flagged as malicious, not to evade legitimate access controls.
+</Note>
+
+## The max-stealth preset
+
+In the Botasaurus config form, the **Apply max-stealth preset** button switches on
+the high-impact options at once. You can also set them individually in a recipe:
+
+```yaml
+botasaurus:
+  headless: true
+  human_mode: true                 # humanized cursor movement
+  google_referer: true             # navigate as if arriving from Google
+  wait_for_complete_page_load: true
+  user_agent: null                 # let Botasaurus pick a realistic one
+```
+
+## The options that matter
+
+<AccordionGroup>
+  <Accordion title="human_mode — humanized cursor" icon="hand-pointer">
+    Enables Botasaurus's human-like mouse movement, so clicks arrive via natural
+    cursor paths instead of teleporting. One of the cheapest, highest-value
+    anti-detection wins.
+  </Accordion>
+  <Accordion title="google_referer — arrive from Google" icon="magnifying-glass">
+    Navigates with a Google referer (via the driver's `google_get`), mimicking a
+    visitor who clicked through from search rather than landing cold.
+  </Accordion>
+  <Accordion title="bypass_cloudflare — solve challenges" icon="shield-halved">
+    Attempts Botasaurus's Cloudflare challenge handling on navigation. Set per
+    `navigate` step or globally in config.
+  </Accordion>
+  <Accordion title="user_agent & window_size — blend in" icon="window-maximize">
+    Set a specific user agent and window size, or leave them null to let Botasaurus
+    choose realistic values. A consistent, common fingerprint draws less attention
+    than an empty or obviously-automated one.
+  </Accordion>
+  <Accordion title="block_images / block_images_and_css — speed" icon="image">
+    Faster page loads, lower bandwidth. Note these change the fingerprint slightly,
+    so don't combine aggressive blocking with max-stealth on the most sensitive
+    sites.
+  </Accordion>
+</AccordionGroup>
+
+## Profiles: persistent logins
+
+The single most detection-resistant pattern is to **log in once as a human and
+reuse the session** — there's no repeated login automation to flag, and you carry
+real cookies and history.
+
+<Steps>
+  <Step title="Name a profile">
+    Set `profile` in the recipe's Botasaurus config: `profile: shop-account`.
+  </Step>
+  <Step title="Establish the session once">
+    Run a login recipe (or record the login with the extension) under that profile.
+    Cookies persist to disk.
+  </Step>
+  <Step title="Reuse it everywhere">
+    Every recipe that declares `profile: shop-account` starts already logged in and
+    can skip authentication entirely.
+  </Step>
+</Steps>
+
+```yaml
+botasaurus:
+  profile: shop-account     # reuse a persistent, logged-in Chrome profile
+  human_mode: true
+steps:
+  - { type: navigate, url: "https://shop.example.com/account/orders" }
+  - { type: extract_markdown, into: order_history }
+```
+
+## Proxies
+
+Route a recipe through a proxy (including authenticated ones) to vary your IP:
+
+```yaml
+botasaurus:
+  proxy: "http://user:pass@proxy.example.com:8080"
+```
+
+<Tip>
+For a dataset that hits a site many times, combine a real **profile** with paced
+sequential rows (the default — one browser at a time) and **human_mode**. That
+looks far more like a logged-in human browsing than a burst of anonymous requests.
+</Tip>
+
+## Record-as-human is the ultimate stealth
+
+No replay-time trick beats not needing one. The [extension
+recorder](/guides/recording) captures flows in your real browser, where there is
+literally nothing to detect. Use it to create recipes and to establish profile
+sessions; reserve the replay-time options above for making the *replay* blend in.
+
+## A note on headless
+
+Headless Chrome is more detectable than headful. On a desktop you can run headful
+(`headless: false`). On a server, keep headless on but lean on `human_mode`,
+`google_referer`, and a profile — or use Botasaurus's Xvfb virtual display
+(`enable_xvfb_virtual_display: true`) to run headful in a container.

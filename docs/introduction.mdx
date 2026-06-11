@@ -1,0 +1,91 @@
+---
+title: "Botasaurus Automation Studio"
+description: "A visual, AI-driven control panel on top of the Botasaurus browser-automation library. Describe what you want in plain English, record flows in your own browser, and replay them forever — without getting flagged as a bot."
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="Botasaurus Automation Studio"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="Botasaurus Automation Studio"
+/>
+
+## What is it?
+
+Botasaurus Automation Studio turns browser automation into something you can
+**describe, record, replay, test, and schedule** — all from a web UI, with the
+[Botasaurus](https://github.com/omkarcloud/botasaurus) anti-detect browser doing
+the driving underneath.
+
+There are two ways to create an automation, and you'll reach for both:
+
+<CardGroup cols={2}>
+  <Card title="Describe it in English" icon="wand-magic-sparkles" href="/guides/ai-automation">
+    *"Go to the quote page and fill out the lead form."* An autonomous agent
+    inspects the page, decides each action with an LLM, and does it — then hands
+    you back a deterministic recipe you can replay without AI.
+  </Card>
+  <Card title="Record it by hand" icon="circle-dot" href="/guides/recording">
+    Click through a flow in **your own logged-in Chrome** with the recorder
+    extension. You're a real human, so nothing flags you — and the saved recipe
+    replays in Botasaurus's stealth browser.
+  </Card>
+</CardGroup>
+
+## Why the record-as-human / replay-in-Botasaurus split matters
+
+Sites have cracked down hard on automation, even the responsible kind. The
+studio is built around a simple principle:
+
+<Note>
+**Create as a human, replay as a robot.** The Chrome extension records in your
+normal, logged-in browser — there is nothing to detect because it *is* you. The
+deterministic replay then runs in Botasaurus's anti-detect Chrome, with
+humanized cursor movement, Google-referer navigation, and persistent profiles
+available when you need them.
+</Note>
+
+## Everything it does
+
+<CardGroup cols={2}>
+  <Card title="Recipes" icon="scroll" href="/concepts/recipes">
+    A small JSON/YAML DSL that captures a flow as ordered steps with
+    `{{variables}}`. Replays with **zero AI**, exports to YAML/JSON, edits in the UI.
+  </Card>
+  <Card title="Self-healing" icon="bandage" href="/guides/self-healing">
+    When a selector breaks, the LLM relocates the element and retries — and flags
+    the fix for your review. Routines survive site changes.
+  </Card>
+  <Card title="Testing" icon="vial" href="/guides/testing">
+    Rich assertions, visual-regression screenshots, test suites with **JUnit XML**
+    for CI, and side-by-side run diffing. A stealth E2E runner.
+  </Card>
+  <Card title="Datasets" icon="table" href="/guides/datasets">
+    Upload a CSV and run a recipe once per row, mapping columns to variables.
+  </Card>
+  <Card title="Scheduling" icon="clock" href="/guides/scheduling">
+    Attach a cron expression to any recipe, or export and run it from the CLI in
+    your own cron.
+  </Card>
+  <Card title="Deep logging" icon="magnifying-glass-chart" href="/concepts/runs-and-the-agent">
+    Every step, screenshot, and LLM call (prompt, response, tokens) is recorded so
+    you can reverse-engineer any failure.
+  </Card>
+</CardGroup>
+
+## Frugal by design
+
+The LLM is a tool of last resort, not the engine. Page-to-markdown conversion is
+pure Python, form fields are filled in deterministic batches, and broken
+selectors retry recorded fallbacks **before** anything asks the model. When the
+agent does call the LLM, it sends a compressed ~6 KB page snapshot, never raw
+HTML. Recipe replays — the thing you'll run thousands of times — use no AI at all.
+
+<Tip>
+New here? The [Quickstart](/quickstart) gets you from `git clone` to your first
+automated form submission in about ten minutes.
+</Tip>

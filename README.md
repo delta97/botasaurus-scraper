@@ -11,6 +11,10 @@ it: it snapshots the page, decides the next action with an LLM (via
 recorded as a deterministic **recipe** that can be replayed forever **without
 AI**, exported as JSON/YAML, and scheduled with cron.
 
+> 📚 **Full user documentation** (Mintlify) lives in [`docs/`](docs/) — concepts,
+> step-by-step guides, and a complete DSL + API reference. Preview it locally
+> with `cd docs && mint dev`.
+
 ## Features
 
 - **Settings UI** — OpenRouter API key + model picker (live model list),
