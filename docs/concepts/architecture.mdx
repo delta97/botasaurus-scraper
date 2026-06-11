@@ -1,0 +1,94 @@
+---
+title: "Architecture"
+description: "How the pieces fit together: a FastAPI backend, a React UI, the Botasaurus browser, and a SQLite database that is the single source of truth."
+---
+
+## The big picture
+
+```mermaid
+flowchart LR
+    UI[React UI] -->|REST + polling| API[FastAPI backend]
+    EXT[Chrome extension] -->|POST recipe + token| API
+    API --> DB[(SQLite)]
+    API --> RM[RunManager<br/>worker threads]
+    RM -->|@browser| BOT[Botasaurus<br/>anti-detect Chrome]
+    RM -->|only when needed| LLM[OpenRouter LLM]
+    SCH[APScheduler] --> RM
+```
+
+The studio is a single Python process that serves both the API and the built
+frontend. Browser work happens on **daemon worker threads** managed by a
+`RunManager`; a semaphore serializes Chrome so only one browser runs at a time
+(extra runs queue). The **SQLite database is the single source of truth** — the
+UI simply polls it, so a crash or restart never loses run history.
+
+## Components
+
+<CardGroup cols={2}>
+  <Card title="FastAPI backend" icon="server">
+    Routers under `/api` for settings, runs, recipes, suites, datasets,
+    schedules, and the extension. Serves the built React app in production.
+  </Card>
+  <Card title="React UI" icon="react">
+    A polling SPA (no heavyweight state library) for creating tasks, browsing run
+    timelines, editing recipes, and managing suites and schedules.
+  </Card>
+  <Card title="Botasaurus" icon="dragon">
+    Vendored into the repo. Its `@browser` decorator and `Driver` API give the
+    anti-detect Chrome the replayer and agent drive.
+  </Card>
+  <Card title="OpenRouter LLM" icon="robot">
+    Called only for agent decisions and self-healing. The studio is model-agnostic
+    — pick any model OpenRouter offers.
+  </Card>
+</CardGroup>
+
+## The frugal-AI principle
+
+The most important architectural decision is **how little the AI is used**:
+
+<Steps>
+  <Step title="Deterministic first">
+    Markdown/text extraction is pure Python (`markdownify`). Filling a form is a
+    single batched action. A broken selector retries its recorded fallbacks
+    before anything calls the model.
+  </Step>
+  <Step title="Compressed when AI is needed">
+    The agent never sends raw HTML. It builds a ~6 KB snapshot — a list of
+    interactive elements with short ids (`e1`, `e2`, …), labels, and generated
+    selectors, plus a text outline.
+  </Step>
+  <Step title="Never on replay">
+    Recipes — the thing you run thousands of times — replay with **no AI at all**,
+    unless you explicitly enable self-healing (and even then, only when a selector
+    actually breaks).
+  </Step>
+</Steps>
+
+## Data model
+
+Everything lives in one SQLite file (`data/app.db`, WAL mode):
+
+| Table | What it holds |
+| --- | --- |
+| `settings` | API key (obfuscated), model, default config, pairing token |
+| `runs` | Every agent run and replay, with status and result |
+| `run_steps` | Per-step log: action, selector, value, duration, screenshot, errors |
+| `llm_calls` | Full prompt, response, token counts, and latency for every LLM call |
+| `recipes` | The recipe DSL, variables, and self-heal settings |
+| `recipe_heals` | Proposed/applied selector repairs awaiting your review |
+| `test_suites` / `suite_runs` | Grouped recipes and their aggregate results |
+| `batch_runs` | Dataset (CSV) runs and their per-row children |
+| `schedules` | Cron schedules attached to recipes |
+
+The schema is versioned (`PRAGMA user_version`) and migrates forward
+automatically on startup with guarded `ALTER`s — no manual migration step.
+
+## Where files land
+
+<Note>
+Run the server from the repo root. Botasaurus writes `output/`, `cache/`, and
+`error_logs/` relative to the working directory, and the studio keeps its own
+data under `data/` (the SQLite DB, screenshots, and visual-regression baselines).
+All of these are gitignored.
+</Note>

@@ -1,0 +1,106 @@
+---
+title: "Botasaurus Config Reference"
+description: "Every browser option you can set per recipe (or as a studio-wide default) — visually in the config form or as a `botasaurus:` block."
+---
+
+The `botasaurus` block of a recipe controls how the browser launches and behaves
+during replay. Set it visually in the **Botasaurus configuration** form (on New
+Task, in Settings as a default, or on a recipe) or write it directly in YAML/JSON.
+
+## Page loading
+
+<ResponseField name="headless" type="boolean" default="true">
+  Run without a visible window. Keep `true` on servers/containers. Headful is less
+  detectable on a desktop.
+</ResponseField>
+<ResponseField name="wait_for_complete_page_load" type="boolean" default="true">
+  Wait for full load rather than DOM-ready — important for JavaScript-heavy sites.
+</ResponseField>
+<ResponseField name="block_images" type="boolean" default="false">
+  Don't load images. Faster, less bandwidth.
+</ResponseField>
+<ResponseField name="block_images_and_css" type="boolean" default="false">
+  Block images **and** CSS. Fastest, but changes the fingerprint and breaks visual
+  checks.
+</ResponseField>
+
+## Anti-detection
+
+<ResponseField name="human_mode" type="boolean" default="false">
+  Humanized cursor movement (`Driver.enable_human_mode`).
+</ResponseField>
+<ResponseField name="google_referer" type="boolean" default="false">
+  Navigate via a Google referer (`Driver.google_get`).
+</ResponseField>
+<ResponseField name="bypass_cloudflare" type="boolean" default="false">
+  Attempt Cloudflare challenge handling on navigation.
+</ResponseField>
+<ResponseField name="user_agent" type="string">
+  Custom UA string. Leave null for a Botasaurus-chosen realistic one.
+</ResponseField>
+<ResponseField name="window_size" type="string">
+  `"WIDTH,HEIGHT"`, e.g. `"1920,1080"`. Pin this when using visual regression.
+</ResponseField>
+<ResponseField name="proxy" type="string">
+  Proxy URL, including auth: `http://user:pass@host:port`.
+</ResponseField>
+<ResponseField name="profile" type="string">
+  Named persistent Chrome profile. Reuse a logged-in session across runs — the most
+  detection-resistant pattern. See [Stealth →
+  Profiles](/guides/stealth#profiles-persistent-logins).
+</ResponseField>
+
+## Reliability & output
+
+<ResponseField name="max_retry" type="integer" default="0">
+  Retries on a browser crash.
+</ResponseField>
+<ResponseField name="screenshots" type="boolean" default="true">
+  Save a screenshot after each step (visible in the run timeline).
+</ResponseField>
+<ResponseField name="enable_xvfb_virtual_display" type="boolean" default="false">
+  Run headful inside a container via Xvfb — useful when headless is too detectable
+  but you have no real display.
+</ResponseField>
+
+## Recommended presets
+
+<Tabs>
+  <Tab title="Fast scraping">
+    ```yaml
+    botasaurus:
+      headless: true
+      block_images: true
+      screenshots: false
+      output_format: markdown
+    ```
+    Strip images and screenshots for throughput; emit the page as markdown.
+  </Tab>
+  <Tab title="Max stealth">
+    ```yaml
+    botasaurus:
+      headless: true
+      human_mode: true
+      google_referer: true
+      wait_for_complete_page_load: true
+      profile: my-account
+    ```
+    Humanized, refered, logged-in. The closest a replay gets to a real visitor.
+  </Tab>
+  <Tab title="Visual testing">
+    ```yaml
+    botasaurus:
+      headless: true
+      window_size: "1280,800"
+      block_images: false
+      block_images_and_css: false
+    ```
+    Fixed viewport and full styling so baselines render consistently.
+  </Tab>
+</Tabs>
+
+<Note>
+Set studio-wide defaults in **Settings → Default Botasaurus configuration**. A
+recipe's own `botasaurus` block overrides the defaults, and per-run overrides (on
+New Task or a replay) override the recipe.
+</Note>

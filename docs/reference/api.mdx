@@ -1,0 +1,172 @@
+---
+title: "REST API Reference"
+description: "Every endpoint the studio exposes under /api. Reads are open on localhost; extension writes are token-gated."
+---
+
+The studio is fully driveable over HTTP. The UI uses these same endpoints. Reads
+are open (single-user localhost trust model); the extension's recipe-create
+endpoint is gated by the pairing token.
+
+<Note>
+Base URL in these examples is `http://localhost:8000`. All bodies are JSON.
+</Note>
+
+## Health & settings
+
+<ResponseField name="GET /api/health" type="endpoint">
+  Liveness + whether Chrome was found. `{ ok, chrome_found, chrome_path, db_path }`.
+</ResponseField>
+<ResponseField name="GET /api/settings" type="endpoint">
+  Current model, whether an API key is set (+ preview), default config, the pairing
+  token, and webhook URL. The API key itself is never returned.
+</ResponseField>
+<ResponseField name="PUT /api/settings" type="endpoint">
+  Update `openrouter_api_key`, `openrouter_model`, `default_botasaurus_config`,
+  and/or `notify_webhook_url`.
+</ResponseField>
+<ResponseField name="POST /api/settings/regenerate-pairing-token" type="endpoint">
+  Issue a new extension pairing token (invalidates the old one).
+</ResponseField>
+<ResponseField name="GET /api/models" type="endpoint">
+  Proxy of OpenRouter's model list (cached). `?q=` filters by id/name.
+</ResponseField>
+
+## Runs
+
+<ResponseField name="POST /api/runs" type="endpoint">
+  Start an agent run. Body: `{ goal, start_url, botasaurus_config?, model? }`. → `{ run_id }`.
+</ResponseField>
+<ResponseField name="GET /api/runs" type="endpoint">
+  List runs (newest first). `?limit=&offset=`.
+</ResponseField>
+<ResponseField name="GET /api/runs/{id}" type="endpoint">
+  A run with its result and token totals.
+</ResponseField>
+<ResponseField name="GET /api/runs/{id}/steps" type="endpoint">
+  The step timeline. `?after=N` for incremental polling.
+</ResponseField>
+<ResponseField name="GET /api/runs/{id}/llm_calls" type="endpoint">
+  Full prompts, responses, token counts, and latency for every LLM call.
+</ResponseField>
+<ResponseField name="GET /api/runs/{id}/screenshots/{step}" type="endpoint">
+  PNG screenshot for a step.
+</ResponseField>
+<ResponseField name="GET /api/runs/{a}/diff/{b}" type="endpoint">
+  Step-by-step + extract diff between two runs.
+</ResponseField>
+<ResponseField name="POST /api/runs/{id}/cancel" type="endpoint">
+  Cancel a queued/running run.
+</ResponseField>
+<ResponseField name="POST /api/runs/{id}/save_recipe" type="endpoint">
+  Turn a finished agent run into a recipe. Body: `{ name, description?, variablize? }`.
+</ResponseField>
+
+## Recipes
+
+<ResponseField name="POST /api/recipes" type="endpoint">
+  Create from a definition. **Requires `X-Studio-Token`** (used by the extension).
+  Body: `{ name, description?, definition }`.
+</ResponseField>
+<ResponseField name="GET /api/recipes" type="endpoint">
+  List recipes.
+</ResponseField>
+<ResponseField name="GET /api/recipes/{id}" type="endpoint">
+  A recipe with its definition, variables, self-heal settings, and recent replays.
+</ResponseField>
+<ResponseField name="PUT /api/recipes/{id}" type="endpoint">
+  Update `name`, `description`, `definition`, `self_heal`, and/or `heal_mode`.
+</ResponseField>
+<ResponseField name="DELETE /api/recipes/{id}" type="endpoint">
+  Delete a recipe.
+</ResponseField>
+<ResponseField name="GET /api/recipes/{id}/export?format=json|yaml" type="endpoint">
+  Download the recipe.
+</ResponseField>
+<ResponseField name="POST /api/recipes/{id}/replay" type="endpoint">
+  Replay (no AI unless self-heal is on). Body: `{ variables, botasaurus_overrides? }`. → `{ run_id }`.
+</ResponseField>
+<ResponseField name="GET /api/recipes/{id}/heals" type="endpoint">
+  List self-heal records for the recipe.
+</ResponseField>
+<ResponseField name="POST /api/recipes/{id}/heals/{heal_id}/accept|reject" type="endpoint">
+  Accept (patch the selector in) or reject a proposed heal.
+</ResponseField>
+
+## Datasets (batch)
+
+<ResponseField name="POST /api/recipes/{id}/batch/csv" type="endpoint">
+  Upload a CSV (multipart `file`). One run per row. → `{ batch_run_id, rows }`.
+</ResponseField>
+<ResponseField name="POST /api/recipes/{id}/batch" type="endpoint">
+  Start a batch from JSON `{ rows: [ {..}, .. ] }`.
+</ResponseField>
+<ResponseField name="GET /api/recipes/{id}/batch" type="endpoint">
+  List batch runs for the recipe.
+</ResponseField>
+<ResponseField name="GET /api/recipes/{id}/batch/{batch_run_id}" type="endpoint">
+  Batch status + per-row children.
+</ResponseField>
+<ResponseField name="POST /api/recipes/{id}/batch/{batch_run_id}/cancel" type="endpoint">
+  Cancel a running batch.
+</ResponseField>
+
+## Suites
+
+<ResponseField name="GET /api/suites · POST /api/suites" type="endpoint">
+  List / create suites.
+</ResponseField>
+<ResponseField name="GET /api/suites/{id} · DELETE /api/suites/{id}" type="endpoint">
+  Get (with recipes + recent runs) / delete a suite.
+</ResponseField>
+<ResponseField name="POST /api/suites/{id}/recipes" type="endpoint">
+  Add a recipe. Body: `{ recipe_id, variables? }`.
+</ResponseField>
+<ResponseField name="DELETE /api/suites/{id}/recipes/{suite_recipe_id}" type="endpoint">
+  Remove a recipe from the suite.
+</ResponseField>
+<ResponseField name="POST /api/suites/{id}/run" type="endpoint">
+  Run the suite sequentially. → `{ suite_run_id }`.
+</ResponseField>
+<ResponseField name="GET /api/suites/{id}/runs/{suite_run_id}" type="endpoint">
+  Suite-run status + child runs.
+</ResponseField>
+<ResponseField name="GET /api/suites/{id}/runs/{suite_run_id}/junit.xml" type="endpoint">
+  JUnit XML report for CI.
+</ResponseField>
+<ResponseField name="POST /api/suites/{id}/runs/{suite_run_id}/cancel" type="endpoint">
+  Cancel a running suite.
+</ResponseField>
+
+## Schedules
+
+<ResponseField name="GET /api/schedules · POST /api/schedules" type="endpoint">
+  List / create. Create body: `{ recipe_id, cron, variables?, enabled? }`.
+</ResponseField>
+<ResponseField name="PUT /api/schedules/{id} · DELETE /api/schedules/{id}" type="endpoint">
+  Update (`cron`, `variables`, `enabled`) / delete a schedule.
+</ResponseField>
+
+## Extension
+
+<ResponseField name="GET /api/extension/ping" type="endpoint">
+  Connection test for the recorder. `{ ok, api_version, selector_spec_version }`.
+</ResponseField>
+
+## Example: create and replay a recipe
+
+```bash
+# 1. fetch the pairing token (shown in Settings)
+TOKEN=$(curl -s localhost:8000/api/settings | jq -r .extension_pairing_token)
+
+# 2. create a recipe from a definition
+RID=$(curl -s -X POST localhost:8000/api/recipes \
+  -H "Content-Type: application/json" -H "X-Studio-Token: $TOKEN" \
+  -d '{"name":"demo","definition":{"version":1,"name":"demo",
+       "steps":[{"type":"navigate","url":"https://example.com"},
+                {"type":"extract_markdown","into":"page"}]}}' | jq .recipe_id)
+
+# 3. replay it
+curl -s -X POST localhost:8000/api/recipes/$RID/replay \
+  -H "Content-Type: application/json" -d '{"variables":{}}'
+# → { "run_id": 7 }
+```

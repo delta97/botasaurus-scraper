@@ -1,0 +1,101 @@
+---
+title: "Scheduling"
+description: "Run recipes on a cron schedule — either with the studio's built-in scheduler or by exporting to the CLI and using your own cron."
+---
+
+Turn a recipe into a routine that runs on its own. You have two options, and they
+complement each other.
+
+## Option 1: the built-in scheduler
+
+The studio includes an in-process scheduler (APScheduler). Attach a cron
+expression to a recipe and it fires while the studio is running — each fire is a
+normal, logged replay.
+
+<Steps>
+  <Step title="Open the recipe's Schedules section">
+    Enter a 5-field cron expression. The variable values entered above are applied
+    on each fire.
+  </Step>
+  <Step title="Add the schedule">
+    It's validated immediately (a bad cron is rejected) and starts firing.
+  </Step>
+  <Step title="Manage it">
+    Toggle it on/off, see the last run (linked to its timeline), or delete it.
+  </Step>
+</Steps>
+
+Via the API:
+
+```bash
+# every weekday at 9am, run recipe 1 with a fixed variable
+curl -X POST localhost:8000/api/schedules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipe_id": 1,
+    "cron": "0 9 * * 1-5",
+    "variables": { "region": "us-west" }
+  }'
+
+curl localhost:8000/api/schedules            # list all schedules
+curl -X PUT localhost:8000/api/schedules/3 \
+  -H "Content-Type: application/json" -d '{"enabled": false}'   # pause
+curl -X DELETE localhost:8000/api/schedules/3                   # remove
+```
+
+<Note>
+The built-in scheduler only runs while the studio process is up. Schedules are
+persisted and rebuilt automatically on restart — but if the process is down when a
+fire was due, that fire is missed (it doesn't backfill).
+</Note>
+
+### Cron quick reference
+
+```text
+┌── minute (0-59)
+│ ┌── hour (0-23)
+│ │ ┌── day of month (1-31)
+│ │ │ ┌── month (1-12)
+│ │ │ │ ┌── day of week (0-6, Sun=0)
+│ │ │ │ │
+0 9 * * 1-5      every weekday at 09:00
+*/30 * * * *     every 30 minutes
+0 0 1 * *        midnight on the 1st of each month
+0 */6 * * *      every 6 hours
+```
+
+## Option 2: export to your own cron
+
+For headless servers or environments where you don't want a long-running studio
+process, run recipes from the CLI in your system cron. No browser UI, no API key
+(unless you opt into self-healing):
+
+```cron
+# /etc/cron.d/botasaurus
+# run recipe 1 every 30 minutes, append output to a log
+*/30 * * * * cd /path/to/botasaurus-scraper && \
+  /usr/bin/python3 -m backend.runner --recipe-id 1 >> /var/log/recipe1.log 2>&1
+```
+
+By default the CLI records its runs in the same database, so external-cron runs
+**show up in the studio's run history** just like UI runs. See the
+[CLI guide](/guides/cli) for all the flags.
+
+## Which to use?
+
+<CardGroup cols={2}>
+  <Card title="Built-in scheduler" icon="clock">
+    Best when the studio is already running and you want to manage schedules
+    visually, with last-run links and one-click pause.
+  </Card>
+  <Card title="External cron + CLI" icon="terminal">
+    Best for headless servers, infra-as-code, or when you want the OS to own
+    scheduling and the studio to be optional.
+  </Card>
+</CardGroup>
+
+<Tip>
+Pair scheduling with **failure webhooks** (Settings) so a routine that breaks at
+3am pings your Slack instead of failing silently. See [Testing →
+Notifications](/guides/testing#failure-notifications).
+</Tip>

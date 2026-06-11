@@ -1,0 +1,70 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Botasaurus Automation Studio",
+  "colors": {
+    "primary": "#5b8def",
+    "light": "#9db8ff",
+    "dark": "#0f1117"
+  },
+  "favicon": "/images/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/recipes",
+              "concepts/runs-and-the-agent"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/ai-automation",
+              "guides/recording",
+              "guides/self-healing",
+              "guides/testing",
+              "guides/datasets",
+              "guides/scheduling",
+              "guides/stealth",
+              "guides/cli"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/recipe-dsl",
+              "reference/botasaurus-config",
+              "reference/api",
+              "best-practices"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/delta97/botasaurus-scraper"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/delta97/botasaurus-scraper"
+    }
+  }
+}
