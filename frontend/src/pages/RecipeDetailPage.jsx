@@ -14,6 +14,8 @@ export default function RecipeDetailPage() {
   const [editText, setEditText] = useState('')
   const [error, setError] = useState(null)
   const [heals, setHeals] = useState([])
+  const [schedules, setSchedules] = useState([])
+  const [cron, setCron] = useState('0 * * * *')
 
   const load = async () => {
     try {
@@ -24,9 +26,36 @@ export default function RecipeDetailPage() {
       setYamlText(await res.text())
       const h = await api(`/api/recipes/${id}/heals`)
       setHeals(h.heals)
+      const sch = await api('/api/schedules')
+      setSchedules(sch.schedules.filter((s) => s.recipe_id === parseInt(id, 10)))
     } catch (e) { setError(e.message) }
   }
   useEffect(() => { load() }, [id])
+
+  const addSchedule = async () => {
+    setError(null)
+    try {
+      await api('/api/schedules', { method: 'POST',
+        body: { recipe_id: parseInt(id, 10), cron, variables } })
+      load()
+    } catch (e) { setError(e.message) }
+  }
+  const toggleSchedule = (s) => api(`/api/schedules/${s.id}`, { method: 'PUT',
+    body: { enabled: !s.enabled } }).then(load).catch((e) => setError(e.message))
+  const deleteSchedule = (sid) => api(`/api/schedules/${sid}`, { method: 'DELETE' })
+    .then(load).catch((e) => setError(e.message))
+
+  const uploadCsv = async (file) => {
+    setError(null)
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const res = await fetch(`/api/recipes/${id}/batch/csv`, { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || res.statusText)
+      alert(`Batch started: ${data.rows} rows (batch run #${data.batch_run_id}). See Runs for per-row results.`)
+    } catch (e) { setError(e.message) }
+  }
 
   const setHeal = async (patch) => {
     setError(null)
@@ -84,9 +113,47 @@ export default function RecipeDetailPage() {
         <h3>Replay {recipe.self_heal ? '(self-healing on)' : '(no AI involved)'}</h3>
         <VariablesForm variables={recipe.variables} values={variables} onChange={setVariables} />
         <button onClick={replay}>▶ Replay now</button>
-        <p className="muted" style={{ marginTop: '0.6rem' }}>
-          Cron example: <code>*/30 * * * * cd /path/to/repo && python -m backend.runner --recipe-id {recipe.id}</code>
+      </div>
+
+      <div className="card">
+        <h3>Dataset (run once per CSV row)</h3>
+        <p className="muted">
+          Upload a CSV whose column headers match this recipe's variables
+          ({recipe.variables.map((v) => `{{${v.name}}}`).join(', ') || 'none defined'}).
+          Each row runs as its own replay.
         </p>
+        <input type="file" accept=".csv" onChange={(e) => e.target.files[0] && uploadCsv(e.target.files[0])} />
+      </div>
+
+      <div className="card">
+        <h3>Schedules</h3>
+        <p className="muted">
+          Cron schedules fire while the studio is running. For external cron use
+          the CLI: <code>python -m backend.runner --recipe-id {recipe.id}</code>
+        </p>
+        {schedules.length > 0 && (
+          <table>
+            <thead><tr><th>Cron</th><th>Variables</th><th>Enabled</th><th>Last run</th><th /></tr></thead>
+            <tbody>
+              {schedules.map((s) => (
+                <tr key={s.id}>
+                  <td><code>{s.cron}</code></td>
+                  <td className="muted">{Object.keys(s.variables).length ? JSON.stringify(s.variables) : '—'}</td>
+                  <td><input type="checkbox" checked={s.enabled} onChange={() => toggleSchedule(s)} /></td>
+                  <td className="muted">{s.last_run_id
+                    ? <Link to={`/runs/${s.last_run_id}`}>{s.last_run_at}</Link> : 'never'}</td>
+                  <td><button className="danger small" onClick={() => deleteSchedule(s.id)}>Delete</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <div className="row" style={{ marginTop: '0.6rem' }}>
+          <input type="text" value={cron} onChange={(e) => setCron(e.target.value)}
+                 placeholder="0 * * * *" style={{ width: '160px' }} />
+          <button className="secondary" onClick={addSchedule}>Add schedule</button>
+          <span className="muted">uses the variable values entered above</span>
+        </div>
       </div>
 
       <div className="card">
