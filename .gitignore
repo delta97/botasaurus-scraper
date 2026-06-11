@@ -236,3 +236,6 @@ frontend/dist/
 # Vendored botasaurus build artifacts
 vendor/botasaurus/**/__pycache__/
 vendor/botasaurus/*.egg-info/
+
+# Extension dev deps
+extension/node_modules/

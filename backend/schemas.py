@@ -8,6 +8,7 @@ class SettingsUpdate(BaseModel):
     openrouter_api_key: Optional[str] = None
     openrouter_model: Optional[str] = None
     default_botasaurus_config: Optional[dict] = None
+    notify_webhook_url: Optional[str] = None
 
 
 class CreateRun(BaseModel):
@@ -21,6 +22,12 @@ class SaveRecipe(BaseModel):
     name: str = Field(min_length=1)
     description: Optional[str] = None
     variablize: bool = True
+
+
+class CreateRecipe(BaseModel):
+    name: str = Field(min_length=1)
+    description: Optional[str] = None
+    definition: dict
 
 
 class UpdateRecipe(BaseModel):

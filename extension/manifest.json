@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Botasaurus Studio Recorder",
+  "version": "1.0.0",
+  "description": "Record browser interactions in your own logged-in Chrome and save them as replayable Botasaurus recipes.",
+  "permissions": ["activeTab", "scripting", "storage", "tabs", "webNavigation"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup/popup.html", "default_title": "Botasaurus Recorder" },
+  "options_page": "options/options.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["shared/selector-spec.json", "content/selector.js", "content/framepath.js", "content/recorder.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

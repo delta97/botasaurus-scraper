@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Botasaurus Recorder — Connection</title>
+  <link rel="stylesheet" href="../popup/popup.css" />
+  <style>body { width: 460px; }</style>
+</head>
+<body>
+  <h2>Studio connection</h2>
+  <label class="field"><span>Studio base URL</span>
+    <input id="studioUrl" type="text" placeholder="http://127.0.0.1:8000" /></label>
+  <label class="field"><span>Pairing token (from the studio's Settings page)</span>
+    <input id="pairingToken" type="text" placeholder="paste token here" /></label>
+  <div class="row">
+    <button id="saveBtn">Save</button>
+    <button id="testBtn" class="secondary">Test connection</button>
+  </div>
+  <div id="result"></div>
+  <script src="options.js"></script>
+</body>
+</html>
