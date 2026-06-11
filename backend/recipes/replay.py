@@ -130,13 +130,17 @@ def _attempt_heal(executor, driver, step, step_dict, args, heal: HealContext):
 def replay_recipe(definition: dict, variables: Optional[dict] = None,
                   botasaurus_overrides: Optional[dict] = None,
                   on_step: Optional[Callable] = None,
-                  screenshot_dir=None, heal: Optional[HealContext] = None) -> dict:
+                  screenshot_dir=None, heal: Optional[HealContext] = None,
+                  should_cancel: Optional[Callable] = None) -> dict:
     """Run a recipe start to finish. Returns
-    {"success": bool, "error": str|None, "extracts": {...}, "steps_executed": int}.
+    {"success": bool, "error": str|None, "extracts": {...}, "steps_executed": int,
+     "heals": int, "cancelled": bool}.
 
     on_step(index, step_dict, status, error, duration_ms, result) is called after
     every step — the API wires it to DB logging, the CLI to stdout. `heal`, when
     provided, relocates a broken selector with the LLM (one retry per step).
+    `should_cancel()` is checked before each step so a running replay can be
+    stopped from the UI.
     """
     from botasaurus.browser import browser  # imported late: heavy
 
@@ -147,12 +151,18 @@ def replay_recipe(definition: dict, variables: Optional[dict] = None,
     bota_cfg.update(botasaurus_overrides or {})
     bypass_cf = bool(bota_cfg.get("bypass_cloudflare"))
 
-    outcome = {"success": True, "error": None, "extracts": {}, "steps_executed": 0, "heals": 0}
+    outcome = {"success": True, "error": None, "extracts": {}, "steps_executed": 0,
+               "heals": 0, "cancelled": False}
 
     @browser(**build_browser_kwargs(bota_cfg))
     def replay_task(driver, data):
         executor = ActionExecutor(driver, screenshot_dir=screenshot_dir)
         for index, step in enumerate(steps):
+            if should_cancel and should_cancel():
+                outcome["success"] = False
+                outcome["cancelled"] = True
+                outcome["error"] = "cancelled by user"
+                return
             args = _step_args(step)
             if step.type == "navigate" and bypass_cf:
                 args["bypass_cloudflare"] = True

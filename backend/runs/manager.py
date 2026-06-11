@@ -18,7 +18,7 @@ def _build_heal_context(run_id, recipe_id, definition, self_heal, heal_mode,
     from ..llm.openrouter import OpenRouterClient
     from ..recipes.replay import HealContext
 
-    llm = OpenRouterClient(api_key=api_key, model=model or "openai/gpt-4o-mini")
+    llm = OpenRouterClient(api_key=api_key, model=model or config.DEFAULT_MODEL)
 
     def log_llm(purpose, messages, response, latency_ms, error):
         return logger.log_llm_call(model=llm.model, purpose=purpose,
@@ -102,10 +102,14 @@ class RunManager:
             outcome = replay_recipe(
                 definition, variables, botasaurus_overrides, on_step=on_step,
                 screenshot_dir=config.SCREENSHOT_DIR / str(run_id), heal=heal,
+                should_cancel=cancel_event.is_set,
             )
             with db.SessionLocal() as session:
                 run = session.get(Run, run_id)
-                run.status = "succeeded" if outcome["success"] else "failed"
+                if outcome.get("cancelled"):
+                    run.status = "cancelled"
+                else:
+                    run.status = "succeeded" if outcome["success"] else "failed"
                 run.error = outcome["error"]
                 run.result = json.dumps({"extracts": outcome["extracts"],
                                          "steps_executed": outcome["steps_executed"],

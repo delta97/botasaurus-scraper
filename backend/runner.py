@@ -117,7 +117,11 @@ def main(argv=None):
 
     print(f"Replaying '{recipe_name}'...", file=sys.stderr)
     try:
-        outcome = replay_recipe(definition, variables, overrides, on_step=on_step, heal=heal)
+        # Botasaurus prints task banners ("Running") to stdout; shunt them to
+        # stderr so stdout carries ONLY the result JSON (pipeable to jq etc).
+        from contextlib import redirect_stdout
+        with redirect_stdout(sys.stderr):
+            outcome = replay_recipe(definition, variables, overrides, on_step=on_step, heal=heal)
     except RecipeError as exc:
         raise SystemExit(str(exc))
 

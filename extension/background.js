@@ -57,7 +57,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (msg.action === 'clear') { await setState({ recording: false, events: [], startedAt: null }); sendResponse({ ok: true }); return; }
       if (msg.action === 'status') {
         const s = await getState();
-        sendResponse({ recording: s.recording, count: s.events.filter(e => e.type !== 'navigate' || true).length, events: s.events });
+        sendResponse({ recording: s.recording, count: s.events.length, events: s.events });
         return;
       }
       if (msg.action === 'getRecipe') {
