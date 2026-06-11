@@ -1,5 +1,6 @@
 """Central paths and constants. All runtime data lives under data/ (gitignored)."""
 import os
+import platform
 import shutil
 from pathlib import Path
 
@@ -44,11 +45,22 @@ DEFAULT_BOTASAURUS_CONFIG = {
 }
 
 
+MACOS_CHROME_PATHS = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+]
+
+
 def find_chrome():
     for name in CHROME_CANDIDATES:
         path = shutil.which(name)
         if path:
             return path
+    if platform.system() == "Darwin":
+        for path in MACOS_CHROME_PATHS:
+            if os.path.isfile(path):
+                return path
     return None
 
 
