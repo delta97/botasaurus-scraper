@@ -83,6 +83,11 @@ tr.clickable:hover td { background: var(--panel2); }
 .badge.ok { background: #1d3526; color: #7fdd9f; }
 .badge.error { background: #3d2020; color: #ff9c9c; }
 .badge.skipped { background: #3a3320; color: #e8c97e; }
+.badge.healed { background: #2a2540; color: #c3a7ff; }
+.badge.proposed { background: #2c3550; color: #9db8ff; }
+.badge.applied, .badge.accepted { background: #1d3526; color: #7fdd9f; }
+.badge.rejected { background: #3d2020; color: #ff9c9c; }
+.step.healed { border-color: #6b53b0; }
 
 .timeline { display: flex; flex-direction: column; gap: 0.4rem; }
 .step {

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from .. import settings_store
 from ..agent.selectors import SELECTOR_SPEC_VERSION
 from ..auth import require_pairing_token
 from ..db import get_session
@@ -56,6 +57,8 @@ def _recipe_dict(recipe: Recipe, include_definition=True):
         "description": recipe.description,
         "variables": json.loads(recipe.variables) if recipe.variables else [],
         "source_run_id": recipe.source_run_id,
+        "self_heal": bool(recipe.self_heal),
+        "heal_mode": recipe.heal_mode or "propose",
         "created_at": recipe.created_at,
         "updated_at": recipe.updated_at,
     }
@@ -102,6 +105,12 @@ def update_recipe(recipe_id: int, payload: UpdateRecipe, session: Session = Depe
         recipe.name = payload.name
     if payload.description is not None:
         recipe.description = payload.description
+    if payload.self_heal is not None:
+        recipe.self_heal = 1 if payload.self_heal else 0
+    if payload.heal_mode is not None:
+        if payload.heal_mode not in ("propose", "auto"):
+            raise HTTPException(status_code=400, detail="heal_mode must be 'propose' or 'auto'")
+        recipe.heal_mode = payload.heal_mode
     recipe.updated_at = utcnow()
     session.commit()
     return _recipe_dict(recipe)
@@ -154,6 +163,60 @@ def replay(recipe_id: int, payload: ReplayRecipe, session: Session = Depends(get
                           variables_used=json.dumps(payload.variables)))
     session.commit()
 
-    run_manager.start_replay_run(run.id, definition, payload.variables,
-                                 payload.botasaurus_overrides)
+    # Self-healing needs an API key even though replay is normally key-free.
+    # If enabled but no key is set, run anyway with healing off (never hard-fail).
+    self_heal = bool(recipe.self_heal)
+    api_key = settings_store.get_api_key(session) if self_heal else None
+    model = settings_store.get_model(session) if self_heal else None
+
+    run_manager.start_replay_run(
+        run.id, definition, payload.variables, payload.botasaurus_overrides,
+        recipe_id=recipe.id, self_heal=self_heal and bool(api_key),
+        heal_mode=recipe.heal_mode or "propose", api_key=api_key, model=model)
     return {"run_id": run.id}
+
+
+@router.get("/{recipe_id}/heals")
+def list_heals(recipe_id: int, session: Session = Depends(get_session)):
+    from ..models import RecipeHeal
+    _get_recipe(session, recipe_id)
+    rows = (session.query(RecipeHeal).filter(RecipeHeal.recipe_id == recipe_id)
+            .order_by(RecipeHeal.id.desc()).all())
+    return {"heals": [{
+        "id": h.id, "run_id": h.run_id, "step_index": h.step_index,
+        "original_selector": h.original_selector, "healed_selector": h.healed_selector,
+        "healed_fallbacks": json.loads(h.healed_fallbacks) if h.healed_fallbacks else [],
+        "element_label": h.element_label, "status": h.status,
+        "created_at": h.created_at, "resolved_at": h.resolved_at,
+    } for h in rows]}
+
+
+@router.post("/{recipe_id}/heals/{heal_id}/{decision}")
+def resolve_heal(recipe_id: int, heal_id: int, decision: str,
+                 session: Session = Depends(get_session)):
+    from ..models import RecipeHeal
+    if decision not in ("accept", "reject"):
+        raise HTTPException(status_code=400, detail="decision must be accept or reject")
+    recipe = _get_recipe(session, recipe_id)
+    heal = session.get(RecipeHeal, heal_id)
+    if heal is None or heal.recipe_id != recipe_id:
+        raise HTTPException(status_code=404, detail="heal not found")
+    if decision == "accept":
+        definition = json.loads(recipe.definition)
+        steps = definition.get("steps", [])
+        if 0 <= heal.step_index < len(steps):
+            steps[heal.step_index]["selector"] = heal.healed_selector
+            steps[heal.step_index]["selector_fallbacks"] = (
+                json.loads(heal.healed_fallbacks) if heal.healed_fallbacks else [])
+            steps[heal.step_index].pop("fragile", None)
+            definition["version"] = definition.get("version", 1) + 1
+            recipe.definition = json.dumps(definition)
+            recipe.variables = json.dumps([v.model_dump() for v in
+                                           validate_definition(definition).variables])
+            recipe.updated_at = utcnow()
+        heal.status = "accepted"
+    else:
+        heal.status = "rejected"
+    heal.resolved_at = utcnow()
+    session.commit()
+    return {"ok": True, "status": heal.status}

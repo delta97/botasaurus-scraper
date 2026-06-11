@@ -37,7 +37,7 @@ class StepLogger:
                      prompt_tokens=None, completion_tokens=None, latency_ms=None,
                      error=None, step_id=None):
         with db.SessionLocal() as session:
-            session.add(LlmCall(
+            call = LlmCall(
                 run_id=self.run_id,
                 step_id=step_id,
                 model=model,
@@ -48,8 +48,10 @@ class StepLogger:
                 completion_tokens=completion_tokens,
                 latency_ms=latency_ms,
                 error=_trunc(error, 4000),
-            ))
+            )
+            session.add(call)
             session.commit()
+            return call.id
 
 
 def _trunc(value, limit):
