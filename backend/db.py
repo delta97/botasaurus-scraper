@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from . import config
 from .models import Base, Run, utcnow
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 engine = None
 SessionLocal = None
@@ -56,6 +56,10 @@ def _migrate():
             cols = {row[1] for row in conn.execute(text("PRAGMA table_info(runs)"))}
             if "suite_run_id" not in cols:
                 conn.execute(text("ALTER TABLE runs ADD COLUMN suite_run_id INTEGER"))
+        if version < 4:
+            cols = {row[1] for row in conn.execute(text("PRAGMA table_info(runs)"))}
+            if "batch_run_id" not in cols:
+                conn.execute(text("ALTER TABLE runs ADD COLUMN batch_run_id INTEGER"))
         if version < SCHEMA_VERSION:
             conn.execute(text(f"PRAGMA user_version = {SCHEMA_VERSION}"))
 

@@ -9,8 +9,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import config, db
-from .routers import extension, models_proxy, recipes, runs, settings, suites
+from . import config, db, scheduler
+from .routers import (datasets, extension, models_proxy, recipes, runs,
+                      schedules, settings, suites)
 
 
 @asynccontextmanager
@@ -19,7 +20,9 @@ async def lifespan(app: FastAPI):
     orphans = db.fail_orphaned_runs()
     if orphans:
         print(f"marked {orphans} orphaned run(s) as failed")
+    scheduler.start()
     yield
+    scheduler.shutdown()
 
 
 app = FastAPI(title="Botasaurus Automation Studio", lifespan=lifespan)
@@ -40,6 +43,8 @@ app.include_router(runs.router)
 app.include_router(recipes.router)
 app.include_router(extension.router)
 app.include_router(suites.router)
+app.include_router(datasets.router)
+app.include_router(schedules.router)
 
 
 @app.get("/api/health")

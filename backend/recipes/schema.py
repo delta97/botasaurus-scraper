@@ -41,6 +41,9 @@ class BotasaurusConfig(BaseModel):
     profile: Optional[str] = None
     max_retry: int = 0
     enable_xvfb_virtual_display: bool = False
+    # anti-detection
+    human_mode: bool = False       # humanized cursor movement (Driver.enable_human_mode)
+    google_referer: bool = False   # navigate via a Google referer (Driver.google_get)
 
 
 class RecipeStep(BaseModel):
