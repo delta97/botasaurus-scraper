@@ -29,6 +29,8 @@ def main(argv=None):
     parser.add_argument("--var", action="append", help="variable override: name=value")
     parser.add_argument("--headless", action="store_true", help="force headless mode")
     parser.add_argument("--out", help="write result JSON to this file")
+    parser.add_argument("--self-heal", action="store_true",
+                        help="relocate broken selectors with the LLM (needs an API key in the app DB)")
     parser.add_argument("--no-log", action="store_true",
                         help="don't record this run in the app database")
     args = parser.parse_args(argv)
@@ -95,9 +97,27 @@ def main(argv=None):
             print(f"  [{status}] step {index}: {step.get('type')}"
                   + (f" — {error}" if error else ""), file=sys.stderr)
 
+    # Self-healing needs a key; degrade gracefully so a cron replay never
+    # crashes just because no key is configured.
+    heal = None
+    if args.self_heal:
+        from . import settings_store
+        from .recipes.replay import HealContext
+        with db.SessionLocal() as session:
+            api_key = settings_store.get_api_key(session)
+            model = settings_store.get_model(session)
+        if api_key:
+            from .llm.openrouter import OpenRouterClient
+            heal = HealContext(llm=OpenRouterClient(api_key=api_key, model=model),
+                               mode="propose")
+            print("self-healing enabled", file=sys.stderr)
+        else:
+            print("warning: --self-heal requested but no API key configured; "
+                  "continuing without healing", file=sys.stderr)
+
     print(f"Replaying '{recipe_name}'...", file=sys.stderr)
     try:
-        outcome = replay_recipe(definition, variables, overrides, on_step=on_step)
+        outcome = replay_recipe(definition, variables, overrides, on_step=on_step, heal=heal)
     except RecipeError as exc:
         raise SystemExit(str(exc))
 

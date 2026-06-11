@@ -1,12 +1,36 @@
-"""Deterministic recipe replay — no LLM involved. Shared by the API replay
-endpoint and the CLI runner (backend.runner)."""
+"""Deterministic recipe replay. Normally NO LLM is involved; the optional
+self-healing path (HealContext) calls the LLM only when a step's selector
+breaks. Shared by the API replay endpoint and the CLI runner (backend.runner).
+"""
 import json
 import os
 import time
+from dataclasses import dataclass
 from typing import Callable, Optional
 
 from ..agent.actions import ActionExecutor
 from .schema import Recipe, substitute_all, validate_definition
+
+# Steps whose failure is worth trying to heal (they resolve a selector).
+HEALABLE_TYPES = {"click", "type", "select_option", "wait_for", "assert"}
+MAX_HEALS_PER_RUN = 5
+
+
+@dataclass
+class HealContext:
+    """Carries the LLM client + behaviour for self-healing a replay. None of
+    its callbacks are required (the CLI may run without DB logging)."""
+    llm: object                      # OpenRouterClient or MockLLMClient
+    mode: str = "propose"            # 'propose' | 'auto'
+    on_heal: Optional[Callable] = None      # (index, step_dict, healed_dict) -> None
+    log_llm: Optional[Callable] = None      # (purpose, messages, response, latency, error) -> llm_call_id
+    attempts_remaining: int = MAX_HEALS_PER_RUN
+
+    def can_attempt(self):
+        return self.attempts_remaining > 0
+
+    def consume(self):
+        self.attempts_remaining -= 1
 
 
 def build_browser_kwargs(bota_cfg: dict) -> dict:
@@ -47,15 +71,72 @@ def _step_args(step) -> dict:
     return args
 
 
+def _attempt_heal(executor, driver, step, step_dict, args, heal: HealContext):
+    """Relocate a broken element with the LLM and retry the step once. Returns
+    the retry ExecResult (with .healed set) on success, else None. Bounded to a
+    single retry per failed step, capped by heal.attempts_remaining."""
+    from ..agent.snapshot import build_snapshot
+    from ..llm import prompts
+
+    heal.consume()
+    try:
+        snap = build_snapshot(driver.page_html, driver.current_url)
+    except Exception:
+        return None
+    executor.set_snapshot(snap)
+
+    messages = [
+        {"role": "system", "content": prompts.HEAL_SYSTEM_PROMPT},
+        {"role": "user", "content": prompts.build_heal_message(step_dict, snap.to_prompt_text())},
+    ]
+    t0 = time.time()
+    try:
+        resp = heal.llm.chat(messages, tools=prompts.HEAL_TOOLS, tool_choice="required")
+    except Exception as exc:
+        if heal.log_llm:
+            heal.log_llm("heal", messages, None, int((time.time() - t0) * 1000), str(exc))
+        executor.set_snapshot(None)
+        return None
+    llm_call_id = None
+    if heal.log_llm:
+        llm_call_id = heal.log_llm("heal", messages, resp.raw or {}, int((time.time() - t0) * 1000), None)
+
+    relocated = None
+    if resp.tool_calls:
+        a = resp.tool_calls[0].arguments
+        if a.get("found") and a.get("element_id"):
+            relocated = snap.element_map.get(a["element_id"])
+    executor.set_snapshot(None)
+    if relocated is None:
+        return None
+
+    retry_args = {**args, "selector": relocated.selector,
+                  "selector_fallbacks": list(relocated.fallbacks)}
+    retry_args.pop("element_id", None)
+    result = executor.execute(step.type, retry_args)
+    if not result.ok:
+        return None
+    result.healed = {
+        "step_index": None,  # filled by caller
+        "original_selector": step.selector,
+        "healed_selector": relocated.selector,
+        "healed_fallbacks": list(relocated.fallbacks),
+        "element_label": relocated.label,
+        "llm_call_id": llm_call_id,
+    }
+    return result
+
+
 def replay_recipe(definition: dict, variables: Optional[dict] = None,
                   botasaurus_overrides: Optional[dict] = None,
                   on_step: Optional[Callable] = None,
-                  screenshot_dir=None) -> dict:
+                  screenshot_dir=None, heal: Optional[HealContext] = None) -> dict:
     """Run a recipe start to finish. Returns
     {"success": bool, "error": str|None, "extracts": {...}, "steps_executed": int}.
 
-    on_step(index, step_dict, status, error, duration_ms, data) is called after
-    every step — the API wires it to DB logging, the CLI to stdout.
+    on_step(index, step_dict, status, error, duration_ms, result) is called after
+    every step — the API wires it to DB logging, the CLI to stdout. `heal`, when
+    provided, relocates a broken selector with the LLM (one retry per step).
     """
     from botasaurus.browser import browser  # imported late: heavy
 
@@ -66,7 +147,7 @@ def replay_recipe(definition: dict, variables: Optional[dict] = None,
     bota_cfg.update(botasaurus_overrides or {})
     bypass_cf = bool(bota_cfg.get("bypass_cloudflare"))
 
-    outcome = {"success": True, "error": None, "extracts": {}, "steps_executed": 0}
+    outcome = {"success": True, "error": None, "extracts": {}, "steps_executed": 0, "heals": 0}
 
     @browser(**build_browser_kwargs(bota_cfg))
     def replay_task(driver, data):
@@ -75,13 +156,32 @@ def replay_recipe(definition: dict, variables: Optional[dict] = None,
             args = _step_args(step)
             if step.type == "navigate" and bypass_cf:
                 args["bypass_cloudflare"] = True
+            step_dict = json.loads(step.model_dump_json(exclude_none=True))
             start = time.time()
             result = executor.execute(step.type, args)
+
+            # Self-heal: only on a selector-driven step that actually failed.
+            if (not result.ok and heal and heal.can_attempt()
+                    and step.type in HEALABLE_TYPES and step.selector):
+                healed = _attempt_heal(executor, driver, step, step_dict, args, heal)
+                if healed is not None:
+                    healed.healed["step_index"] = index
+                    result = healed
+                    outcome["heals"] += 1
+                    if heal.on_heal:
+                        heal.on_heal(index, step_dict, result.healed)
+
             duration_ms = int((time.time() - start) * 1000)
-            status = "ok" if result.ok else ("skipped" if step.optional else "error")
+            if result.healed:
+                status = "healed"
+            elif result.ok:
+                status = "ok"
+            elif step.optional:
+                status = "skipped"
+            else:
+                status = "error"
             if on_step:
-                on_step(index, json.loads(step.model_dump_json(exclude_none=True)),
-                        status, result.error, duration_ms, result)
+                on_step(index, step_dict, status, result.error, duration_ms, result)
             outcome["steps_executed"] += 1
             if result.ok and result.data is not None:
                 key = step.into or f"step_{index}_{step.type}"

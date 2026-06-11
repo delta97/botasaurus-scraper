@@ -130,3 +130,41 @@ def build_user_message(goal, snapshot_text, history_lines, last_error=None):
     parts.append("")
     parts.append("Choose exactly one tool call for the next action.")
     return "\n".join(parts)
+
+
+# --- Self-healing: relocate a recorded element whose selector no longer matches.
+HEAL_SYSTEM_PROMPT = """\
+A recorded browser-automation step can no longer find its target element (the \
+page changed). Given the step's intent and the CURRENT page, pick the element_id \
+that best matches the original element, or report that no element matches.
+Respond with exactly one `relocate` tool call. Prefer an element of the same \
+kind (a button stays a button, an email field stays an email field) and the same \
+visible label/text as the original."""
+
+HEAL_TOOLS = [
+    {"type": "function", "function": {
+        "name": "relocate",
+        "description": "Identify the element on the current page matching the broken step.",
+        "parameters": {"type": "object", "properties": {
+            "found": {"type": "boolean", "description": "True if a matching element exists on this page."},
+            "element_id": {"type": "string", "description": "The matching element id (e.g. 'e7'). Required when found=true."},
+            "reason": {"type": "string", "description": "Brief justification."},
+        }, "required": ["found"]},
+    }},
+]
+
+
+def build_heal_message(step, snapshot_text):
+    """step: a dict with type/selector/value/label and recorded hints."""
+    desc = [f"BROKEN STEP: {step.get('type')}"]
+    if step.get("selector"):
+        desc.append(f"  original selector (now failing): {step['selector']}")
+    for key, label in (("element_label", "label"), ("element_text", "text"),
+                       ("tag", "tag"), ("input_type", "input type"), ("value", "value being entered")):
+        if step.get(key):
+            desc.append(f"  {label}: {step[key]}")
+    return "\n".join([
+        "\n".join(desc), "",
+        "CURRENT PAGE:", snapshot_text, "",
+        "Call relocate with the matching element_id, or found=false if none matches.",
+    ])

@@ -13,6 +13,7 @@ export default function RecipeDetailPage() {
   const [editMode, setEditMode] = useState(false)
   const [editText, setEditText] = useState('')
   const [error, setError] = useState(null)
+  const [heals, setHeals] = useState([])
 
   const load = async () => {
     try {
@@ -21,9 +22,26 @@ export default function RecipeDetailPage() {
       setEditText(JSON.stringify(data.definition, null, 2))
       const res = await fetch(`/api/recipes/${id}/export?format=yaml`)
       setYamlText(await res.text())
+      const h = await api(`/api/recipes/${id}/heals`)
+      setHeals(h.heals)
     } catch (e) { setError(e.message) }
   }
   useEffect(() => { load() }, [id])
+
+  const setHeal = async (patch) => {
+    setError(null)
+    try {
+      const updated = await api(`/api/recipes/${id}`, { method: 'PUT', body: patch })
+      setRecipe(updated)
+    } catch (e) { setError(e.message) }
+  }
+
+  const resolveHeal = async (healId, decision) => {
+    try {
+      await api(`/api/recipes/${id}/heals/${healId}/${decision}`, { method: 'POST' })
+      load()
+    } catch (e) { setError(e.message) }
+  }
 
   const replay = async () => {
     setError(null)
@@ -63,12 +81,57 @@ export default function RecipeDetailPage() {
       {error && <div className="error-banner">{error}</div>}
 
       <div className="card">
-        <h3>Replay (no AI involved)</h3>
+        <h3>Replay {recipe.self_heal ? '(self-healing on)' : '(no AI involved)'}</h3>
         <VariablesForm variables={recipe.variables} values={variables} onChange={setVariables} />
         <button onClick={replay}>▶ Replay now</button>
         <p className="muted" style={{ marginTop: '0.6rem' }}>
           Cron example: <code>*/30 * * * * cd /path/to/repo && python -m backend.runner --recipe-id {recipe.id}</code>
         </p>
+      </div>
+
+      <div className="card">
+        <h3>Self-healing</h3>
+        <label className="checkbox-row">
+          <input type="checkbox" checked={recipe.self_heal}
+                 onChange={(e) => setHeal({ self_heal: e.target.checked })} />
+          When a selector breaks during replay, relocate the element with AI (needs an OpenRouter key)
+        </label>
+        {recipe.self_heal && (
+          <label className="field" style={{ marginTop: '0.6rem' }}>
+            <span>On a successful heal</span>
+            <select value={recipe.heal_mode} onChange={(e) => setHeal({ heal_mode: e.target.value })}>
+              <option value="propose">Propose — keep the recipe as-is, flag for my review</option>
+              <option value="auto">Auto-apply — patch the recipe now, still flag for review</option>
+            </select>
+          </label>
+        )}
+        {heals.length > 0 && (
+          <div style={{ marginTop: '0.8rem' }}>
+            <h4 style={{ marginBottom: '0.4rem' }}>Healed steps</h4>
+            <table>
+              <thead><tr><th>Step</th><th>Was</th><th>Now</th><th>Element</th><th>Status</th><th /></tr></thead>
+              <tbody>
+                {heals.map((h) => (
+                  <tr key={h.id}>
+                    <td>#{h.step_index}{h.run_id && <> · <Link to={`/runs/${h.run_id}`}>run {h.run_id}</Link></>}</td>
+                    <td className="muted"><code>{h.original_selector}</code></td>
+                    <td><code>{h.healed_selector}</code></td>
+                    <td className="muted">{h.element_label}</td>
+                    <td><StatusBadge status={h.status} /></td>
+                    <td>
+                      {(h.status === 'proposed' || h.status === 'applied') && (
+                        <span className="row">
+                          <button className="small" onClick={() => resolveHeal(h.id, 'accept')}>Accept</button>
+                          <button className="danger small" onClick={() => resolveHeal(h.id, 'reject')}>Reject</button>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="card">

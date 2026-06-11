@@ -34,6 +34,8 @@ class UpdateRecipe(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     definition: Optional[dict] = None
+    self_heal: Optional[bool] = None
+    heal_mode: Optional[str] = None
 
 
 class ReplayRecipe(BaseModel):
