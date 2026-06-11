@@ -47,21 +47,9 @@ def build_browser_kwargs(bota_cfg: dict) -> dict:
         "raise_exception": True,
         "enable_xvfb_virtual_display": bool(bota_cfg.get("enable_xvfb_virtual_display", False)),
     }
-    for key in ("proxy", "user_agent", "profile"):
+    for key in ("proxy", "user_agent", "window_size", "profile"):
         if bota_cfg.get(key):
             kwargs[key] = bota_cfg[key]
-
-    # window_size is stored as "W,H" in our config but botasaurus wants a (w, h) pair
-    window_size = bota_cfg.get("window_size")
-    if window_size:
-        if isinstance(window_size, str):
-            try:
-                w, h = (int(x) for x in window_size.replace("x", ",").split(","))
-                kwargs["window_size"] = (w, h)
-            except (ValueError, TypeError):
-                pass  # malformed; fall back to the browser default
-        else:
-            kwargs["window_size"] = window_size
 
     extra_args = list(bota_cfg.get("add_arguments") or [])
     if hasattr(os, "geteuid") and os.geteuid() == 0:
@@ -143,8 +131,7 @@ def replay_recipe(definition: dict, variables: Optional[dict] = None,
                   botasaurus_overrides: Optional[dict] = None,
                   on_step: Optional[Callable] = None,
                   screenshot_dir=None, heal: Optional[HealContext] = None,
-                  should_cancel: Optional[Callable] = None,
-                  baseline_dir=None) -> dict:
+                  should_cancel: Optional[Callable] = None) -> dict:
     """Run a recipe start to finish. Returns
     {"success": bool, "error": str|None, "extracts": {...}, "steps_executed": int,
      "heals": int, "cancelled": bool}.
@@ -169,8 +156,7 @@ def replay_recipe(definition: dict, variables: Optional[dict] = None,
 
     @browser(**build_browser_kwargs(bota_cfg))
     def replay_task(driver, data):
-        executor = ActionExecutor(driver, screenshot_dir=screenshot_dir,
-                                  baseline_dir=baseline_dir)
+        executor = ActionExecutor(driver, screenshot_dir=screenshot_dir)
         for index, step in enumerate(steps):
             if should_cancel and should_cancel():
                 outcome["success"] = False

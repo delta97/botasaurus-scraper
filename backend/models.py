@@ -30,7 +30,6 @@ class Run(Base):
     result = Column(Text)  # JSON
     error = Column(Text)
     recipe_id = Column(Integer, ForeignKey("recipes.id"))
-    suite_run_id = Column(Integer, ForeignKey("suite_runs.id"))  # set for suite children
     total_prompt_tokens = Column(Integer, default=0)
     total_completion_tokens = Column(Integer, default=0)
     created_at = Column(Text, default=utcnow)
@@ -111,36 +110,3 @@ class RecipeRun(Base):
     run_id = Column(Integer, ForeignKey("runs.id"), nullable=False)
     variables_used = Column(Text)  # JSON
     created_at = Column(Text, default=utcnow)
-
-
-class TestSuite(Base):
-    __test__ = False  # not a pytest test class
-    __tablename__ = "test_suites"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(Text, nullable=False)
-    description = Column(Text)
-    created_at = Column(Text, default=utcnow)
-    updated_at = Column(Text, default=utcnow)
-
-
-class SuiteRecipe(Base):
-    __tablename__ = "suite_recipes"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    suite_id = Column(Integer, ForeignKey("test_suites.id"), nullable=False, index=True)
-    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False)
-    position = Column(Integer, nullable=False, default=0)
-    variables = Column(Text)  # JSON: per-suite variable overrides for this recipe
-
-
-class SuiteRun(Base):
-    __tablename__ = "suite_runs"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    suite_id = Column(Integer, ForeignKey("test_suites.id"), nullable=False, index=True)
-    # queued | running | passed | failed | cancelled
-    status = Column(Text, nullable=False, default="queued")
-    total = Column(Integer, default=0)
-    passed = Column(Integer, default=0)
-    failed = Column(Integer, default=0)
-    created_at = Column(Text, default=utcnow)
-    started_at = Column(Text)
-    finished_at = Column(Text)

@@ -6,32 +6,20 @@
 
 function computeFramePath(node) {
   const path = [];
-  const engine = window.__botaSelectorEngine;
-  const selectorFor = (el, doc) => {
-    try { if (engine) return engine.generateSelector(el, doc).primary; } catch (e) { /* fall through */ }
-    return el.tagName.toLowerCase();
-  };
-
-  // 1. Nested shadow roots: a selector for each shadow host, innermost last.
   let root = node.getRootNode && node.getRootNode();
+  // Walk up nested shadow roots, recording a selector for each shadow host.
   while (root && root.host) {
     const host = root.host;
-    path.unshift(selectorFor(host, host.ownerDocument));
+    try {
+      if (typeof createSelectorEngine === 'function' && window.__botaSelectorEngine) {
+        path.unshift(window.__botaSelectorEngine.generateSelector(
+          host, host.ownerDocument).primary);
+      } else {
+        path.unshift(host.tagName.toLowerCase());
+      }
+    } catch (e) { /* best effort */ }
     root = host.getRootNode && host.getRootNode();
   }
-
-  // 2. Same-origin iframe chain: a selector for each iframe element in its
-  // parent document, outermost first. Cross-origin parents throw — stop there
-  // (the replay engine can only reach same-origin frames by selector anyway).
-  try {
-    let win = node.ownerDocument && node.ownerDocument.defaultView;
-    while (win && win.frameElement) {
-      const frameEl = win.frameElement;
-      path.unshift(selectorFor(frameEl, frameEl.ownerDocument));
-      win = win.parent;
-    }
-  } catch (e) { /* cross-origin boundary reached */ }
-
   return path;
 }
 
