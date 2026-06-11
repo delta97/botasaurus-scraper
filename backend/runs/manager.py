@@ -407,7 +407,7 @@ class RunManager:
     def _finish(self, run_id, status, error):
         with db.SessionLocal() as session:
             run = session.get(Run, run_id)
-            if run and run.status not in ("succeeded", "failed", "cancelled", "max_steps"):
+            if run and run.status not in ("succeeded", "failed", "cancelled", "max_steps", "stalled"):
                 run.status = status
                 run.error = error
                 run.finished_at = utcnow()

@@ -93,3 +93,40 @@ def test_agent_handles_failed_action_and_finishes(session_factory, fixture_serve
     # the failure was fed back to the LLM in the next user message
     last_messages = mock.calls[-1]["messages"]
     assert "FAILED" in last_messages[-1]["content"] or "failed" in last_messages[-1]["content"].lower()
+
+
+@pytest.mark.browser
+def test_agent_stalls_when_model_loops_on_same_action(session_factory, fixture_server):
+    """A weak model that re-extracts the same static page forever (never calling
+    finish) must be stopped at the repeat limit, not after the full step budget."""
+    from backend import config
+    from backend.agent.loop import run_agent
+    from backend.llm.mock import MockLLMClient
+
+    with db.SessionLocal() as session:
+        run = Run(
+            kind="agent", goal="find the footer info",
+            start_url=f"{fixture_server}/form_page.html",
+            status="running",
+            botasaurus_config=json.dumps({"headless": True, "screenshots": False}),
+        )
+        session.add(run)
+        session.commit()
+        run_id = run.id
+
+    # extract_markdown never changes the page, so every snapshot is identical.
+    # The 'into' key varies (as it did in the real stalled run) but the action
+    # is the same — the volatile-key stripping must still see it as a repeat.
+    mock = MockLLMClient([("extract_markdown", {"into": f"dump_{i}"}) for i in range(12)])
+
+    status = run_agent(run_id, threading.Event(), llm_client=mock)
+    assert status == "stalled"
+
+    with db.SessionLocal() as session:
+        run = session.get(Run, run_id)
+        llm_calls = session.query(LlmCall).filter(LlmCall.run_id == run_id).all()
+
+    # Failed fast at the repeat limit — nowhere near MAX_AGENT_STEPS.
+    assert len(llm_calls) == config.STALL_REPEAT_LIMIT
+    assert len(llm_calls) < config.MAX_AGENT_STEPS
+    assert "repeated" in (run.error or "")

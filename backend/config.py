@@ -15,6 +15,11 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "anthropic/claude-sonnet-4.6"
 
 MAX_AGENT_STEPS = 25
+# Abort a run when the LLM decides the SAME action against an UNCHANGED page
+# this many times in a row. Catches weak models that loop on a read-only action
+# (e.g. re-extracting the same footer) and never call finish, so the run fails
+# fast instead of burning the whole step budget re-sending identical snapshots.
+STALL_REPEAT_LIMIT = 3
 SNAPSHOT_CHAR_BUDGET = 6000
 MAX_INTERACTIVE_ELEMENTS = 80
 

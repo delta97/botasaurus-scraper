@@ -23,7 +23,7 @@ class Run(Base):
     kind = Column(Text, nullable=False)  # agent | replay
     goal = Column(Text)
     start_url = Column(Text, nullable=False)
-    # queued | running | succeeded | failed | cancelled | max_steps
+    # queued | running | succeeded | failed | cancelled | max_steps | stalled
     status = Column(Text, nullable=False, default="queued")
     botasaurus_config = Column(Text, nullable=False, default="{}")  # JSON
     model = Column(Text)

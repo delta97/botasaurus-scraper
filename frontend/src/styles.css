@@ -78,7 +78,7 @@ tr.clickable:hover td { background: var(--panel2); }
 }
 .badge.running, .badge.queued { background: #2c3550; color: #9db8ff; }
 .badge.succeeded { background: #1d3526; color: #7fdd9f; }
-.badge.failed, .badge.max_steps { background: #3d2020; color: #ff9c9c; }
+.badge.failed, .badge.max_steps, .badge.stalled { background: #3d2020; color: #ff9c9c; }
 .badge.cancelled { background: #3a3320; color: #e8c97e; }
 .badge.ok { background: #1d3526; color: #7fdd9f; }
 .badge.error { background: #3d2020; color: #ff9c9c; }

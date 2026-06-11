@@ -26,6 +26,17 @@ class AgentError(Exception):
     pass
 
 
+# Args that label/store a result rather than change what the action DOES, so two
+# extracts that differ only by destination ("into": "a" vs "b") count as the same
+# action for stall detection.
+_VOLATILE_ARG_KEYS = {"into", "name", "message"}
+
+
+def _action_signature(name, args):
+    stable = {k: v for k, v in (args or {}).items() if k not in _VOLATILE_ARG_KEYS}
+    return name + ":" + json.dumps(stable, sort_keys=True, default=str)
+
+
 def _load_llm(run):
     with db.SessionLocal() as session:
         api_key = settings_store.get_api_key(session)
@@ -108,6 +119,10 @@ def _agent_inner_loop(driver, run_id, goal, start_url, cfg, llm, logger,
     extracts = {}
     last_error = None
     steps_used = 0
+    # Stall detection: (page fingerprint, action signature) of the previous
+    # decision, plus how many times it has repeated unchanged.
+    last_decision = None
+    repeat_count = 0
 
     def log_and_record(name, args, result, duration_ms):
         nonlocal last_error
@@ -165,10 +180,11 @@ def _agent_inner_loop(driver, run_id, goal, start_url, cfg, llm, logger,
                 final["error"] = f"could not snapshot page: {exc}"
                 return
             executor.set_snapshot(snap)
+            snap_text = snap.to_prompt_text()
             messages = [
                 {"role": "system", "content": prompts.SYSTEM_PROMPT},
                 {"role": "user", "content": prompts.build_user_message(
-                    goal, snap.to_prompt_text(), history, last_error)},
+                    goal, snap_text, history, last_error)},
             ]
             t0 = time.time()
             try:
@@ -213,6 +229,25 @@ def _agent_inner_loop(driver, run_id, goal, start_url, cfg, llm, logger,
                     "answer": tool.arguments.get("result"),
                     "extracts": extracts,
                 }
+                return
+
+            # Stall guard: same action decided against an unchanged page N times
+            # running means the model is looping (weak models re-extract instead
+            # of calling finish). Abort now rather than re-sending identical
+            # snapshots until the step budget runs out.
+            decision = (hash(snap_text), _action_signature(tool.name, tool.arguments))
+            if decision == last_decision:
+                repeat_count += 1
+            else:
+                last_decision = decision
+                repeat_count = 1
+            if repeat_count >= config.STALL_REPEAT_LIMIT:
+                final["status"] = "stalled"
+                final["error"] = (
+                    f"stopped after the model repeated '{tool.name}' "
+                    f"{repeat_count}x on an unchanged page without finishing — "
+                    f"it is likely stuck. Try a more capable model.")
+                final["result"] = {"summary": None, "answer": None, "extracts": extracts}
                 return
 
             if tool.name == "fill_form":
