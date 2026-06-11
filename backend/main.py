@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from . import config, db
-from .routers import extension, models_proxy, recipes, runs, settings
+from .routers import extension, models_proxy, recipes, runs, settings, suites
 
 
 @asynccontextmanager
@@ -39,6 +39,7 @@ app.include_router(models_proxy.router)
 app.include_router(runs.router)
 app.include_router(recipes.router)
 app.include_router(extension.router)
+app.include_router(suites.router)
 
 
 @app.get("/api/health")

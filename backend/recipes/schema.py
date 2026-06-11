@@ -10,10 +10,12 @@ from pydantic import BaseModel, Field, ValidationError
 STEP_TYPES = (
     "navigate", "click", "type", "select_option", "wait_for", "scroll",
     "extract_markdown", "extract_text", "screenshot", "run_js", "assert",
+    "assert_screenshot",
 )
 
 _VAR_PATTERN = re.compile(r"\{\{\s*(\w+)\s*\}\}")
-_SUBSTITUTABLE_FIELDS = ("url", "value", "label", "script", "text_contains")
+_SUBSTITUTABLE_FIELDS = ("url", "value", "label", "script", "text_contains",
+                         "text_equals", "attribute_equals")
 
 
 class RecipeError(Exception):
@@ -59,6 +61,15 @@ class RecipeStep(BaseModel):
     wait: Optional[int] = None
     bypass_cloudflare: bool = False
     optional: bool = False
+    # assert-only checks (combine freely; all provided checks must pass)
+    text_equals: Optional[str] = None
+    attribute: Optional[str] = None
+    attribute_equals: Optional[str] = None
+    url_matches: Optional[str] = None  # regex against the current URL
+    count: Optional[int] = None        # exact number of elements matching selector
+    # assert_screenshot-only: allowed fraction of differing pixels (0.0-1.0)
+    threshold: Optional[float] = None
+    update_baseline: bool = False
     # iframe / shadow-DOM targeting: ordered selectors from the top document
     # down to the frame that contains the element (empty = top document).
     frame_path: List[str] = Field(default_factory=list)
