@@ -98,49 +98,6 @@ def get_steps(run_id: int, after: int = -1, session: Session = Depends(get_sessi
     } for s in rows]}
 
 
-def _step_brief(s: RunStep):
-    return {
-        "step_index": s.step_index, "action": s.action, "status": s.status,
-        "selector": s.selector, "value": s.value, "error": s.error,
-        "duration_ms": s.duration_ms, "has_screenshot": bool(s.screenshot_path),
-    }
-
-
-@router.get("/{run_id}/diff/{other_id}")
-def diff_runs(run_id: int, other_id: int, session: Session = Depends(get_session)):
-    """Step-by-step comparison of two runs (typically of the same recipe) —
-    spot regressions by durations, statuses, and result changes."""
-    run_a = _get_run(session, run_id)
-    run_b = _get_run(session, other_id)
-    steps_a = {s.step_index: s for s in session.query(RunStep)
-               .filter(RunStep.run_id == run_id).all()}
-    steps_b = {s.step_index: s for s in session.query(RunStep)
-               .filter(RunStep.run_id == other_id).all()}
-
-    rows = []
-    for index in sorted(set(steps_a) | set(steps_b)):
-        a, b = steps_a.get(index), steps_b.get(index)
-        changed = (a is None or b is None or a.status != b.status
-                   or a.action != b.action or a.selector != b.selector)
-        rows.append({"index": index,
-                     "a": _step_brief(a) if a else None,
-                     "b": _step_brief(b) if b else None,
-                     "changed": changed})
-
-    def extracts_of(run):
-        result = json.loads(run.result) if run.result else {}
-        return result.get("extracts") or {}
-
-    ex_a, ex_b = extracts_of(run_a), extracts_of(run_b)
-    extracts_diff = {
-        "only_a": sorted(set(ex_a) - set(ex_b)),
-        "only_b": sorted(set(ex_b) - set(ex_a)),
-        "changed": sorted(k for k in set(ex_a) & set(ex_b) if ex_a[k] != ex_b[k]),
-    }
-    return {"a": _run_dict(run_a), "b": _run_dict(run_b),
-            "steps": rows, "extracts_diff": extracts_diff}
-
-
 @router.get("/{run_id}/llm_calls")
 def get_llm_calls(run_id: int, session: Session = Depends(get_session)):
     _get_run(session, run_id)

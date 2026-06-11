@@ -7,7 +7,6 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("APP_DATA_DIR", str(ROOT_DIR / "data")))
 DB_PATH = DATA_DIR / "app.db"
 SCREENSHOT_DIR = DATA_DIR / "screenshots"
-BASELINE_DIR = DATA_DIR / "baselines"
 FRONTEND_DIST = ROOT_DIR / "frontend" / "dist"
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"

@@ -97,36 +97,6 @@ extract_markdown, extract_text, screenshot, run_js, assert`. All accept
 `optional: true` (continue on failure) and `selector_fallbacks` (tried in
 order when the primary selector breaks). See `examples/lead_form_recipe.yaml`.
 
-### Testing
-
-The studio doubles as a stealth end-to-end test runner (Playwright/Cypress can't
-run on bot-protected sites; Botasaurus can):
-
-- **Rich assertions** — the `assert` step supports `selector` presence,
-  `text_contains`, `text_equals`, `attribute`/`attribute_equals`, `count` (exact
-  number of matching elements), and `url_matches` (regex). Combine freely; all
-  provided checks must pass.
-- **Visual regression** — the `assert_screenshot` step captures the page (or one
-  element) and compares it to a stored baseline with a pixel-diff threshold. The
-  first run saves the baseline; later runs fail past the threshold and write a
-  diff image highlighting the changed pixels. Set `update_baseline: true` to
-  re-baseline.
-- **Test suites** — group recipes into a suite (Test Suites tab), run them
-  sequentially, get aggregate pass/fail, and export the result as **JUnit XML**
-  (`GET /api/suites/{id}/runs/{run_id}/junit.xml`) for GitHub Actions.
-- **Run diffing** — from any replay of a recipe, "Compare with run #N" shows a
-  side-by-side of the two runs: per-step status/selector/duration changes and
-  which extracted values differ.
-- **Failure webhooks** — set a webhook URL in Settings (Slack/Discord incoming
-  webhooks work as-is) and a JSON summary is POSTed whenever a run or suite fails.
-
-### iframes & shadow DOM
-
-Steps carry an optional `frame_path` — an ordered list of selectors from the top
-document down to the element's same-origin iframe (or shadow-DOM host). The
-extension records it automatically; replay enters the frame before acting.
-Cross-origin iframes aren't reachable by selector and are out of scope.
-
 ### Self-healing replays
 
 Sites change and selectors break. Enable **self-healing** on a recipe (its
