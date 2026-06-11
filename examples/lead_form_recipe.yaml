@@ -1,0 +1,41 @@
+# Example recipe: fill a lead form and capture the confirmation.
+# Replay with:  python -m backend.runner examples/lead_form_recipe.yaml --var first_name=Jane
+version: 1
+name: example-lead-form
+description: Fill out a lead form and extract the confirmation message
+variables:
+  - name: first_name
+    default: John
+  - name: last_name
+    default: Doe
+  - name: email
+    default: john@example.com
+botasaurus:
+  headless: true
+  wait_for_complete_page_load: true
+  block_images: true
+  screenshots: false
+output_format: json
+steps:
+  - type: navigate
+    url: http://127.0.0.1:8731/form_page.html
+  - type: type
+    selector: "input[name='first_name']"
+    value: "{{first_name}}"
+  - type: type
+    selector: "input[name='last_name']"
+    value: "{{last_name}}"
+  - type: type
+    selector: "input[name='email']"
+    value: "{{email}}"
+  - type: select_option
+    selector: "select[name='project_type']"
+    value: windows
+  - type: click
+    selector: "#lead-form button[type='submit']"
+  - type: assert
+    selector: "#thanks"
+    message: confirmation message did not appear
+  - type: extract_text
+    selector: "#thanks"
+    into: confirmation

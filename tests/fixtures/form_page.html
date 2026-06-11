@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head><title>Get a Quote - Test Lead Form</title></head>
+<body>
+  <h1>Request your free quote</h1>
+  <p>Fill out the form below and our team will contact you.</p>
+  <nav>
+    <a href="/pricing">Pricing</a>
+    <a href="/about-us">About us</a>
+  </nav>
+  <form id="lead-form">
+    <label for="first">First name</label>
+    <input id="first" name="first_name" type="text" required>
+
+    <label for="last">Last name</label>
+    <input id="last" name="last_name" type="text">
+
+    <label>Email address
+      <input name="email" type="email" required>
+    </label>
+
+    <input name="zip" type="text" placeholder="ZIP code">
+
+    <label for="project">Project type</label>
+    <select id="project" name="project_type">
+      <option value="">Choose...</option>
+      <option value="windows">Window replacement</option>
+      <option value="roofing">Roofing</option>
+    </select>
+
+    <input type="hidden" name="utm_source" value="test">
+    <button type="submit">Get my quote</button>
+  </form>
+  <div style="display:none">You should not see this</div>
+  <script>
+    document.getElementById('lead-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var d = document.createElement('div');
+      d.id = 'thanks';
+      d.textContent = 'Thank you ' + this.first_name.value + '! We received your request.';
+      document.body.appendChild(d);
+    });
+  </script>
+</body>
+</html>

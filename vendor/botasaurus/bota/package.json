@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "pretest": "pip3 install -e . && python3 -m bota --install chalk@4",
+    "prepare": "pip3 install black",
+    "lint": "python3 -m black --line-length 100 src",
+    "fix": "standard --fix",
+    "test": "mocha",
+    "upload": "python3 increment_version.py && rm -rf dist/ src/bota.egg-info src/bota/package_storage.json  MANIFEST  && python3 setup.py sdist && python3 -m pip install -e . && python3 -m twine upload dist/* --verbose"
+  }}
