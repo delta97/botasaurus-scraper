@@ -97,6 +97,25 @@ extract_markdown, extract_text, screenshot, run_js, assert`. All accept
 `optional: true` (continue on failure) and `selector_fallbacks` (tried in
 order when the primary selector breaks). See `examples/lead_form_recipe.yaml`.
 
+### Self-healing replays
+
+Sites change and selectors break. Enable **self-healing** on a recipe (its
+detail page) and when a step's selector — and all its fallbacks — fail during
+replay, the LLM relocates the element from a page snapshot and retries once
+(bounded: one retry per step, capped per run, only on selector failures). Replay
+is otherwise completely AI-free; healing only fires on a break and only if an
+OpenRouter key is set.
+
+- **Propose** mode (default): the recipe is left untouched and the heal is
+  flagged on the recipe page for you to **Accept** (patches the selector in) or
+  **Reject**.
+- **Auto-apply** mode: the recipe is patched immediately (and its version
+  bumped), but the heal is still recorded for audit/revert.
+
+Healed steps show a distinct badge in the run timeline, with the failed attempt,
+the heal's LLM call, and the successful retry all visible. CLI: add `--self-heal`
+(degrades gracefully to a normal replay if no key is configured).
+
 ### CLI / cron scheduling
 
 Recipes replay headlessly from the command line — no LLM, no API key:
@@ -104,7 +123,8 @@ Recipes replay headlessly from the command line — no LLM, no API key:
 ```bash
 python -m backend.runner examples/lead_form_recipe.yaml --var first_name=Jane
 python -m backend.runner --recipe-id 3 --var zip=10001 --out result.json
-python -m backend.runner recipe.yaml --no-log   # don't record in the app DB
+python -m backend.runner recipe.yaml --no-log     # don't record in the app DB
+python -m backend.runner --recipe-id 3 --self-heal  # AI-repair broken selectors
 ```
 
 Exit code 0/1 = success/failure; result JSON on stdout. Cron example:

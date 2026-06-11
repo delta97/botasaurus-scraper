@@ -79,8 +79,28 @@ class Recipe(Base):
     definition = Column(Text, nullable=False)  # canonical JSON
     variables = Column(Text)  # JSON [{name, default, description}]
     source_run_id = Column(Integer, ForeignKey("runs.id"))
+    # self-healing: relocate a broken selector with the LLM during replay
+    self_heal = Column(Integer, default=0)  # bool
+    heal_mode = Column(Text, default="propose")  # 'propose' | 'auto'
     created_at = Column(Text, default=utcnow)
     updated_at = Column(Text, default=utcnow)
+
+
+class RecipeHeal(Base):
+    __tablename__ = "recipe_heals"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False, index=True)
+    run_id = Column(Integer, ForeignKey("runs.id"))
+    step_index = Column(Integer, nullable=False)
+    original_selector = Column(Text)
+    healed_selector = Column(Text)
+    healed_fallbacks = Column(Text)  # JSON
+    element_label = Column(Text)
+    # proposed (awaiting review) | applied (auto-patched) | accepted | rejected
+    status = Column(Text, nullable=False, default="proposed")
+    llm_call_id = Column(Integer, ForeignKey("llm_calls.id"))
+    created_at = Column(Text, default=utcnow)
+    resolved_at = Column(Text)
 
 
 class RecipeRun(Base):
