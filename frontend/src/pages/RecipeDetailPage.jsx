@@ -1,0 +1,111 @@
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { api } from '../api'
+import StatusBadge from '../components/StatusBadge'
+import VariablesForm from '../components/VariablesForm'
+
+export default function RecipeDetailPage() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const [recipe, setRecipe] = useState(null)
+  const [yamlText, setYamlText] = useState('')
+  const [variables, setVariables] = useState({})
+  const [editMode, setEditMode] = useState(false)
+  const [editText, setEditText] = useState('')
+  const [error, setError] = useState(null)
+
+  const load = async () => {
+    try {
+      const data = await api(`/api/recipes/${id}`)
+      setRecipe(data)
+      setEditText(JSON.stringify(data.definition, null, 2))
+      const res = await fetch(`/api/recipes/${id}/export?format=yaml`)
+      setYamlText(await res.text())
+    } catch (e) { setError(e.message) }
+  }
+  useEffect(() => { load() }, [id])
+
+  const replay = async () => {
+    setError(null)
+    try {
+      const { run_id } = await api(`/api/recipes/${id}/replay`, {
+        method: 'POST', body: { variables },
+      })
+      navigate(`/runs/${run_id}`)
+    } catch (e) { setError(e.message) }
+  }
+
+  const saveEdit = async () => {
+    setError(null)
+    try {
+      const definition = JSON.parse(editText)
+      await api(`/api/recipes/${id}`, { method: 'PUT', body: { definition } })
+      setEditMode(false)
+      load()
+    } catch (e) { setError(e.message) }
+  }
+
+  if (error && !recipe) return <div className="error-banner">{error}</div>
+  if (!recipe) return <p className="muted">Loading…</p>
+
+  return (
+    <div>
+      <div className="row">
+        <h2>{recipe.name}</h2>
+        <span className="spacer" />
+        <a href={`/api/recipes/${id}/export?format=yaml`} download><button className="secondary small">Export YAML</button></a>
+        <a href={`/api/recipes/${id}/export?format=json`} download><button className="secondary small">Export JSON</button></a>
+      </div>
+      <p className="muted">
+        {recipe.description}
+        {recipe.source_run_id && <> — recorded from <Link to={`/runs/${recipe.source_run_id}`}>run #{recipe.source_run_id}</Link></>}
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+
+      <div className="card">
+        <h3>Replay (no AI involved)</h3>
+        <VariablesForm variables={recipe.variables} values={variables} onChange={setVariables} />
+        <button onClick={replay}>▶ Replay now</button>
+        <p className="muted" style={{ marginTop: '0.6rem' }}>
+          Cron example: <code>*/30 * * * * cd /path/to/repo && python -m backend.runner --recipe-id {recipe.id}</code>
+        </p>
+      </div>
+
+      <div className="card">
+        <div className="row">
+          <h3>Definition</h3>
+          <span className="spacer" />
+          <button className="secondary small" onClick={() => setEditMode(!editMode)}>
+            {editMode ? 'Cancel' : 'Edit JSON'}
+          </button>
+          {editMode && <button className="small" onClick={saveEdit}>Save</button>}
+        </div>
+        {editMode ? (
+          <textarea style={{ minHeight: '350px', fontFamily: 'monospace' }}
+                    value={editText} onChange={(e) => setEditText(e.target.value)} />
+        ) : (
+          <pre className="result-block">{yamlText}</pre>
+        )}
+      </div>
+
+      {recipe.replays?.length > 0 && (
+        <div className="card">
+          <h3>Past replays</h3>
+          <table>
+            <thead><tr><th>Run</th><th>Status</th><th>Variables</th><th>When</th></tr></thead>
+            <tbody>
+              {recipe.replays.map((r) => (
+                <tr key={r.run_id} className="clickable" onClick={() => navigate(`/runs/${r.run_id}`)}>
+                  <td>#{r.run_id}</td>
+                  <td><StatusBadge status={r.status} /></td>
+                  <td className="muted">{JSON.stringify(r.variables_used)}</td>
+                  <td className="muted">{r.created_at}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}

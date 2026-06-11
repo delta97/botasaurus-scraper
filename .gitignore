@@ -216,3 +216,23 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- AI Web Automation Studio ---
+# Botasaurus runtime artifacts (written relative to CWD)
+output/
+cache/
+error_logs/
+profiles/
+profiles.json
+local_storage.json
+
+# App runtime data
+data/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Vendored botasaurus build artifacts
+vendor/botasaurus/**/__pycache__/
+vendor/botasaurus/*.egg-info/
