@@ -239,3 +239,5 @@ vendor/botasaurus/*.egg-info/
 
 # Extension dev deps
 extension/node_modules/
+# lib/ above matches Python packaging artifacts; un-ignore the JS lib directory
+!extension/lib/
