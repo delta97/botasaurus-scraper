@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <span class="logo">🦖 Recorder</span>
+    <span id="status" class="status">…</span>
+  </header>
+
+  <div id="controls" class="row">
+    <button id="recordBtn">● Record</button>
+    <button id="stopBtn" class="secondary" hidden>■ Stop</button>
+    <button id="clearBtn" class="secondary" hidden>Clear</button>
+  </div>
+
+  <div id="liveCount" class="muted" hidden></div>
+
+  <div id="review" hidden>
+    <label class="field"><span>Recipe name</span>
+      <input id="recipeName" type="text" placeholder="my-routine" /></label>
+    <div id="steps" class="steps"></div>
+    <button id="saveBtn">Save to Studio</button>
+    <div id="saveResult"></div>
+  </div>
+
+  <footer>
+    <a id="optionsLink" href="#">Studio connection settings</a>
+  </footer>
+  <script src="../lib/dsl.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

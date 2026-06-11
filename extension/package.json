@@ -1,0 +1,12 @@
+{
+  "name": "botasaurus-studio-extension",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome MV3 recorder for Botasaurus Automation Studio",
+  "scripts": {
+    "test": "node test/selector.test.js && node test/dsl.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "selector_spec_version": 1,
+  "comment": "Single source of truth for the selector ladder, shared by backend/agent/selectors.py (Python) and extension/content/selector.js (JS). Both MUST produce identical output for the golden fixtures in tests/fixtures/selectors/. Keep regex Python/JS-compatible (no named groups, no inline flags).",
+  "unstable_id_regex": "(^\\d|[0-9a-f]{8,}|\\d{4,}|:|^ember|^yui_|^__|--[0-9a-f]{4,})",
+  "unstable_id_flags": "i",
+  "attribute_ladder": ["name", "data-testid", "aria-label", "placeholder"],
+  "href_min_segment_length": 3,
+  "input_type_self_selectors": ["submit", "email", "tel", "search"],
+  "max_fallbacks": 2
+}

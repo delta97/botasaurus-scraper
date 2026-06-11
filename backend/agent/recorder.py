@@ -88,6 +88,7 @@ def build_recipe_definition(name: str, steps: List[dict], botasaurus_config: dic
         variables = []
     # screenshots/output_format are app-level settings, not replay behavior knobs
     bota = {k: v for k, v in (botasaurus_config or {}).items() if k != "output_format"}
+    from .selectors import SELECTOR_SPEC_VERSION
     return {
         "version": 1,
         "name": name,
@@ -96,4 +97,6 @@ def build_recipe_definition(name: str, steps: List[dict], botasaurus_config: dic
         "botasaurus": bota,
         "output_format": output_format,
         "steps": steps,
+        "selector_spec_version": SELECTOR_SPEC_VERSION,
+        "source": "agent",
     }

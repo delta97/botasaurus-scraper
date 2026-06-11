@@ -5,9 +5,13 @@ import json
 from . import config, secrets
 from .models import Setting, utcnow
 
+import secrets as _pysecrets
+
 KEY_API_KEY = "openrouter_api_key"
 KEY_MODEL = "openrouter_model"
 KEY_DEFAULT_CONFIG = "default_botasaurus_config"
+KEY_PAIRING_TOKEN = "extension_pairing_token"
+KEY_WEBHOOK_URL = "notify_webhook_url"
 
 
 def get_setting(session, key, default=None):
@@ -43,3 +47,28 @@ def get_default_botasaurus_config(session):
     if stored:
         merged.update(json.loads(stored))
     return merged
+
+
+def get_pairing_token(session, create=True):
+    """The shared secret the Chrome extension sends as X-Studio-Token.
+    Stored obfuscated like the API key. Generated on first access."""
+    stored = get_setting(session, KEY_PAIRING_TOKEN)
+    if stored:
+        return secrets.deobfuscate(stored)
+    if not create:
+        return None
+    token = _pysecrets.token_urlsafe(24)
+    set_setting(session, KEY_PAIRING_TOKEN, secrets.obfuscate(token))
+    session.commit()
+    return token
+
+
+def regenerate_pairing_token(session):
+    token = _pysecrets.token_urlsafe(24)
+    set_setting(session, KEY_PAIRING_TOKEN, secrets.obfuscate(token))
+    session.commit()
+    return token
+
+
+def get_webhook_url(session):
+    return get_setting(session, KEY_WEBHOOK_URL)

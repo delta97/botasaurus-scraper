@@ -1,0 +1,32 @@
+:root { --bg:#181b24; --panel:#1f2330; --border:#2a2f3e; --text:#e6e9f0; --muted:#8b92a5; --accent:#5b8def; --red:#e05b5b; --green:#3fb96a; }
+* { box-sizing: border-box; }
+body { width: 360px; margin: 0; padding: 12px; background: var(--bg); color: var(--text);
+  font-family: system-ui, sans-serif; font-size: 13px; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.logo { font-weight: 600; }
+.status { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+.status.rec { color: var(--red); font-weight: 700; }
+.row { display: flex; gap: 8px; }
+button { background: var(--accent); color: white; border: none; border-radius: 7px;
+  padding: 8px 12px; font-weight: 600; cursor: pointer; font-size: 13px; }
+button.secondary { background: var(--panel); border: 1px solid var(--border); color: var(--text); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.muted { color: var(--muted); font-size: 12px; margin: 8px 0; }
+.field { display: block; margin: 10px 0; }
+.field span { display: block; color: var(--muted); margin-bottom: 4px; }
+input[type=text] { width: 100%; padding: 7px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text); font-size: 13px; }
+.steps { max-height: 280px; overflow-y: auto; margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+.step { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+.step-head { display: flex; align-items: center; gap: 6px; }
+.step .t { font-weight: 700; color: var(--accent); min-width: 84px; }
+.step .sel { color: var(--muted); font-size: 11px; word-break: break-all; flex: 1; }
+.step .x { background: none; border: none; color: var(--red); cursor: pointer; padding: 0 4px; font-size: 14px; }
+.step .var { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 4px;
+  font-size: 10px; padding: 1px 5px; cursor: pointer; }
+.step input.val { width: 100%; margin-top: 4px; padding: 4px 6px; font-size: 12px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); }
+footer { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+a { color: var(--accent); font-size: 12px; }
+.ok { color: var(--green); margin-top: 8px; }
+.err { color: var(--red); margin-top: 8px; }

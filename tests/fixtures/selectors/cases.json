@@ -1,0 +1,66 @@
+{
+  "selector_spec_version": 1,
+  "cases": [
+    {
+      "file": "01-stable-id.html",
+      "expected": {
+        "primary": "#email-input",
+        "fallbacks": [
+          "input[name='email']",
+          "input[type='email']"
+        ],
+        "fragile": false
+      }
+    },
+    {
+      "file": "02-unstable-id-to-name.html",
+      "expected": {
+        "primary": "input[name='email']",
+        "fallbacks": [
+          "input[type='email']"
+        ],
+        "fragile": false
+      }
+    },
+    {
+      "file": "03-link-href.html",
+      "expected": {
+        "primary": "a[href*='window-replacement']",
+        "fallbacks": [],
+        "fragile": false
+      }
+    },
+    {
+      "file": "04-placeholder.html",
+      "expected": {
+        "primary": "input[placeholder='ZIP code']",
+        "fallbacks": [],
+        "fragile": false
+      }
+    },
+    {
+      "file": "05-aria-label.html",
+      "expected": {
+        "primary": "button[aria-label='Close dialog']",
+        "fallbacks": [],
+        "fragile": false
+      }
+    },
+    {
+      "file": "06-nth-path.html",
+      "expected": {
+        "primary": "body > div > p > button:nth-of-type(2)",
+        "fallbacks": [],
+        "fragile": true
+      }
+    },
+    {
+      "file": "08-data-testid.html",
+      "expected": {
+        "primary": "span[data-testid='submit-btn']",
+        "fallbacks": [],
+        "fragile": false
+      }
+    }
+  ]
+}

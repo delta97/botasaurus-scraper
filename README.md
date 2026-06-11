@@ -33,6 +33,16 @@ AI**, exported as JSON/YAML, and scheduled with cron.
   - the LLM sees a compressed ~6 KB page snapshot, never raw HTML
   - recipe replays use **zero** AI
 
+## Record routines in your own browser (Chrome extension)
+
+Instead of describing a routine to the AI, you can **record it by hand** in your
+own logged-in Chrome with the unpacked extension in [`extension/`](extension/README.md):
+click through a flow across pages and sites, stop, and it saves a replayable
+recipe to the studio (no AI/tokens). You record as a real human (undetectable);
+the studio replays in Botasaurus's anti-detect Chrome. The extension's selector
+engine is kept byte-identical to the backend's via shared golden-fixture tests.
+See [`extension/README.md`](extension/README.md).
+
 ## Setup
 
 ```bash

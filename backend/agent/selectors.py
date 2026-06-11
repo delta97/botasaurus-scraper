@@ -3,16 +3,32 @@
 Priority: stable #id > [name=] > [data-testid]/[aria-label] > [placeholder=]
 > a[href*=] > nth-of-type path (flagged fragile). Every candidate is verified
 unique against the parsed document before being chosen.
+
+The ladder constants and the unstable-id regex are loaded from
+extension/shared/selector-spec.json so that the JS recorder in the Chrome
+extension (extension/content/selector.js) stays byte-for-byte in sync with
+this module. Golden fixtures in tests/fixtures/selectors/ enforce parity.
 """
+import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List
+
+_SPEC_PATH = Path(__file__).resolve().parents[2] / "extension" / "shared" / "selector-spec.json"
+with open(_SPEC_PATH) as _f:
+    SELECTOR_SPEC = json.load(_f)
+
+SELECTOR_SPEC_VERSION = SELECTOR_SPEC["selector_spec_version"]
+_ATTRIBUTE_LADDER = SELECTOR_SPEC["attribute_ladder"]
+_HREF_MIN_SEGMENT = SELECTOR_SPEC["href_min_segment_length"]
+_INPUT_TYPE_SELF = set(SELECTOR_SPEC["input_type_self_selectors"])
+_MAX_FALLBACKS = SELECTOR_SPEC["max_fallbacks"]
 
 # ids that look auto-generated: long hex, uuid chunks, long digit runs,
 # framework ids like ":r3:" / "ember123" / "__next..."
-_UNSTABLE_ID = re.compile(
-    r"(^\d|[0-9a-f]{8,}|\d{4,}|:|^ember|^yui_|^__|--[0-9a-f]{4,})", re.I
-)
+_flags = re.I if "i" in SELECTOR_SPEC.get("unstable_id_flags", "") else 0
+_UNSTABLE_ID = re.compile(SELECTOR_SPEC["unstable_id_regex"], _flags)
 
 
 @dataclass
@@ -45,7 +61,7 @@ def _href_candidate(node):
     # last meaningful path segment keeps the selector short and host-agnostic
     path = re.sub(r"[?#].*$", "", href).rstrip("/")
     segment = path.rsplit("/", 1)[-1]
-    if len(segment) >= 3:
+    if len(segment) >= _HREF_MIN_SEGMENT:
         return f"a[href*='{css_escape(segment)}']"
     return f"a[href='{css_escape(href)}']"
 
@@ -87,7 +103,7 @@ def generate_selector(node, soup) -> SelectorResult:
     if node_id and looks_stable_id(node_id):
         candidates.append(f"#{css_escape(node_id)}")
 
-    for attr in ("name", "data-testid", "aria-label", "placeholder"):
+    for attr in _ATTRIBUTE_LADDER:
         cand = _attr_candidate(node, attr)
         if cand:
             candidates.append(cand)
@@ -97,14 +113,14 @@ def generate_selector(node, soup) -> SelectorResult:
         if cand:
             candidates.append(cand)
 
-    if node.name == "input" and node.get("type") in ("submit", "email", "tel", "search"):
+    if node.name == "input" and node.get("type") in _INPUT_TYPE_SELF:
         candidates.append(f"input[type='{node.get('type')}']")
 
     unique = [c for c in candidates if _is_unique(soup, c)]
     if unique:
-        return SelectorResult(primary=unique[0], fallbacks=unique[1:3])
+        return SelectorResult(primary=unique[0], fallbacks=unique[1:1 + _MAX_FALLBACKS])
 
     # No unique attribute selector: positional path as last resort.
     path = _nth_path(node)
-    fallbacks = candidates[:2]  # non-unique but better than nothing on changed pages
+    fallbacks = candidates[:_MAX_FALLBACKS]  # non-unique but better than nothing on changed pages
     return SelectorResult(primary=path, fallbacks=fallbacks, fragile=True)

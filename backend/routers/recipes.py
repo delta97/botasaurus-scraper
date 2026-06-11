@@ -4,13 +4,42 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from ..agent.selectors import SELECTOR_SPEC_VERSION
+from ..auth import require_pairing_token
 from ..db import get_session
-from ..models import Recipe, RecipeRun, Run
+from ..models import Recipe, RecipeRun, Run, utcnow
 from ..recipes.schema import RecipeError, to_json, to_yaml, validate_definition
 from ..runs.manager import run_manager
-from ..schemas import ReplayRecipe, UpdateRecipe
+from ..schemas import CreateRecipe, ReplayRecipe, UpdateRecipe
 
 router = APIRouter(prefix="/api/recipes", tags=["recipes"])
+
+
+@router.post("", dependencies=[Depends(require_pairing_token)])
+def create_recipe(payload: CreateRecipe, session: Session = Depends(get_session)):
+    """Create a recipe directly from a definition. Used by the Chrome extension
+    recorder (token-gated) and as a generic import path."""
+    try:
+        validated = validate_definition(payload.definition)
+    except RecipeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    incoming_version = validated.selector_spec_version
+    warning = None
+    if incoming_version is not None and incoming_version != SELECTOR_SPEC_VERSION:
+        warning = (f"recording used selector spec v{incoming_version}, server is "
+                   f"v{SELECTOR_SPEC_VERSION}; selectors may differ — update the extension")
+
+    definition = payload.definition
+    recipe = Recipe(
+        name=payload.name,
+        description=payload.description,
+        definition=json.dumps(definition),
+        variables=json.dumps([v.model_dump() for v in validated.variables]),
+    )
+    session.add(recipe)
+    session.commit()
+    return {"recipe_id": recipe.id, "warning": warning}
 
 
 def _get_recipe(session, recipe_id) -> Recipe:

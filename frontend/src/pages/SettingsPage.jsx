@@ -10,15 +10,25 @@ export default function SettingsPage() {
   const [models, setModels] = useState([])
   const [filter, setFilter] = useState('')
   const [status, setStatus] = useState(null)
+  const [webhook, setWebhook] = useState('')
 
   useEffect(() => {
     api('/api/settings').then((s) => {
       setSettings(s)
       setModel(s.openrouter_model)
       setConfig(s.default_botasaurus_config)
+      setWebhook(s.notify_webhook_url || '')
     }).catch((e) => setStatus({ error: e.message }))
     api('/api/models').then((d) => setModels(d.models)).catch(() => setModels([]))
   }, [])
+
+  const regenerateToken = async () => {
+    try {
+      const r = await api('/api/settings/regenerate-pairing-token', { method: 'POST' })
+      setSettings({ ...settings, extension_pairing_token: r.extension_pairing_token })
+      setStatus({ ok: 'New pairing token generated — update it in the extension.' })
+    } catch (e) { setStatus({ error: e.message }) }
+  }
 
   const save = async () => {
     setStatus(null)
@@ -26,6 +36,7 @@ export default function SettingsPage() {
       const payload = {
         openrouter_model: model,
         default_botasaurus_config: config,
+        notify_webhook_url: webhook,
       }
       if (apiKey) payload.openrouter_api_key = apiKey
       const updated = await api('/api/settings', { method: 'PUT', body: payload })
@@ -84,6 +95,32 @@ export default function SettingsPage() {
           The key is stored obfuscated (not encrypted) in the local SQLite database
           and is never returned by the API.
         </p>
+      </div>
+
+      <div className="card">
+        <h3>Chrome extension recorder</h3>
+        <p className="muted">
+          Install the <code>extension/</code> folder unpacked in Chrome
+          (chrome://extensions → Developer mode → Load unpacked), then paste this
+          pairing token into the extension's connection settings. It authorizes
+          the extension to save recorded recipes to this studio.
+        </p>
+        <label className="field">
+          <span>Pairing token</span>
+          <input type="text" readOnly value={settings.extension_pairing_token || ''}
+                 onFocus={(e) => e.target.select()} />
+        </label>
+        <button className="secondary small" onClick={regenerateToken}>Regenerate token</button>
+      </div>
+
+      <div className="card">
+        <h3>Notifications</h3>
+        <label className="field">
+          <span>Failure webhook URL (Slack/Discord-compatible, optional)</span>
+          <input type="text" value={webhook} placeholder="https://hooks.slack.com/services/..."
+                 onChange={(e) => setWebhook(e.target.value)} />
+        </label>
+        <p className="muted">A JSON summary is POSTed here when a scheduled or batch run fails.</p>
       </div>
 
       <div className="card">

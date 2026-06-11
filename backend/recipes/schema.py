@@ -59,6 +59,15 @@ class RecipeStep(BaseModel):
     wait: Optional[int] = None
     bypass_cloudflare: bool = False
     optional: bool = False
+    # iframe / shadow-DOM targeting: ordered selectors from the top document
+    # down to the frame that contains the element (empty = top document).
+    frame_path: List[str] = Field(default_factory=list)
+    # healing hints recorded at capture time so a broken selector can be
+    # relocated by the LLM (descriptive only, never variable-substituted).
+    element_label: Optional[str] = None
+    element_text: Optional[str] = None
+    tag: Optional[str] = None
+    input_type: Optional[str] = None
 
 
 class Recipe(BaseModel):
@@ -69,6 +78,12 @@ class Recipe(BaseModel):
     botasaurus: BotasaurusConfig = Field(default_factory=BotasaurusConfig)
     output_format: Literal["json", "markdown"] = "json"
     steps: List[RecipeStep] = Field(default_factory=list)
+    # selector-spec version the recording was produced with; the backend warns
+    # on mismatch so JS/Python selector drift after an extension upgrade is visible.
+    selector_spec_version: Optional[int] = None
+    # provenance: 'agent' (recorded from an AI run) or 'extension' (recorded in
+    # the user's own browser by the Chrome extension).
+    source: Optional[str] = None
 
 
 def validate_definition(definition: dict) -> Recipe:

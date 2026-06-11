@@ -6,10 +6,11 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from . import config, db
-from .routers import models_proxy, recipes, runs, settings
+from .routers import extension, models_proxy, recipes, runs, settings
 
 
 @asynccontextmanager
@@ -23,10 +24,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Botasaurus Automation Studio", lifespan=lifespan)
 
+# Scoped to the Chrome extension origin only — never "*", which would let any
+# website POST to the localhost server. Writes are additionally token-gated.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"chrome-extension://.*",
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-Studio-Token"],
+    allow_credentials=False,
+)
+
 app.include_router(settings.router)
 app.include_router(models_proxy.router)
 app.include_router(runs.router)
 app.include_router(recipes.router)
+app.include_router(extension.router)
 
 
 @app.get("/api/health")
