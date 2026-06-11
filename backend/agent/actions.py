@@ -20,6 +20,8 @@ class ExecResult:
     fallbacks: list = field(default_factory=list)
     fragile: bool = False
     value: Optional[str] = None
+    # set when a self-heal relocated the element for this step
+    healed: Optional[dict] = None
 
 
 class ActionExecutor:

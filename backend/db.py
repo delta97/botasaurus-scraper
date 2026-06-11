@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from . import config
 from .models import Base, Run, utcnow
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 engine = None
 SessionLocal = None
@@ -41,12 +41,19 @@ def init_db(db_path=None):
 
 
 def _migrate():
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         version = conn.execute(text("PRAGMA user_version")).scalar()
-        # Future ALTER TABLE migrations go here, gated on `version`.
+        # create_all (called before this) adds brand-new tables; ALTERs below add
+        # columns to existing tables. SQLite has no ADD COLUMN IF NOT EXISTS, so
+        # each ALTER is guarded by PRAGMA table_info to stay idempotent.
+        if version < 2:
+            cols = {row[1] for row in conn.execute(text("PRAGMA table_info(recipes)"))}
+            if "self_heal" not in cols:
+                conn.execute(text("ALTER TABLE recipes ADD COLUMN self_heal INTEGER DEFAULT 0"))
+            if "heal_mode" not in cols:
+                conn.execute(text("ALTER TABLE recipes ADD COLUMN heal_mode TEXT DEFAULT 'propose'"))
         if version < SCHEMA_VERSION:
             conn.execute(text(f"PRAGMA user_version = {SCHEMA_VERSION}"))
-            conn.commit()
 
 
 def fail_orphaned_runs():
