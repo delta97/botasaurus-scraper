@@ -65,17 +65,25 @@ def _migrate():
 
 
 def fail_orphaned_runs():
-    """Runs left 'running'/'queued' by a previous process can never finish."""
+    """Runs/suites/batches left 'running'/'queued' by a previous process can
+    never finish; mark them failed so the UI doesn't show phantom progress."""
+    from .models import BatchRun, SuiteRun
     with SessionLocal() as session:
-        orphans = (
-            session.query(Run).filter(Run.status.in_(["running", "queued"])).all()
-        )
-        for run in orphans:
+        count = 0
+        runs = session.query(Run).filter(Run.status.in_(["running", "queued"])).all()
+        for run in runs:
             run.status = "failed"
             run.error = "server restarted while run was in progress"
             run.finished_at = utcnow()
+            count += 1
+        for model_cls in (SuiteRun, BatchRun):
+            for row in session.query(model_cls).filter(
+                    model_cls.status.in_(["running", "queued"])).all():
+                row.status = "failed"
+                row.finished_at = utcnow()
+                count += 1
         session.commit()
-        return len(orphans)
+        return count
 
 
 def get_session():

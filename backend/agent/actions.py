@@ -192,7 +192,12 @@ class ActionExecutor:
         def fail(detail):
             return ExecResult(ok=False, error=f"{message} ({detail})", selector=selector)
 
-        if selector and args.get("count") is None:
+        # Wait for the element whenever any selector-based check needs it (not
+        # just presence): a pure count check is the only one that tolerates 0.
+        needs_element = any(args.get(k) is not None for k in
+                            ("text_equals", "attribute")) or (
+            selector and args.get("count") is None)
+        if selector and needs_element:
             checked = True
             try:
                 self.driver.wait_for_element(selector, wait=timeout)
@@ -224,7 +229,9 @@ class ActionExecutor:
                 return fail("count check needs a selector")
             actual = self.driver.run_js(
                 f"return document.querySelectorAll({_json.dumps(selector)}).length")
-            if int(actual or 0) != int(args["count"]):
+            if actual is None:
+                return fail(f"could not evaluate element count for {selector}")
+            if int(actual) != int(args["count"]):
                 return fail(f"found {actual} elements matching {selector}, expected {args['count']}")
 
         if args.get("url_matches"):
