@@ -121,7 +121,16 @@ def main(argv=None):
         # stderr so stdout carries ONLY the result JSON (pipeable to jq etc).
         from contextlib import redirect_stdout
         with redirect_stdout(sys.stderr):
-            outcome = replay_recipe(definition, variables, overrides, on_step=on_step, heal=heal)
+            # visual baselines live with the recipe: per-recipe dir for DB
+            # recipes, a sibling .baselines dir for file-based ones
+            if args.recipe_id is not None:
+                from . import config
+                baseline_dir = config.BASELINE_DIR / str(args.recipe_id)
+            else:
+                recipe_path = Path(args.recipe_file)
+                baseline_dir = recipe_path.parent / (recipe_path.stem + ".baselines")
+            outcome = replay_recipe(definition, variables, overrides, on_step=on_step,
+                                    heal=heal, baseline_dir=baseline_dir)
     except RecipeError as exc:
         raise SystemExit(str(exc))
 

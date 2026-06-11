@@ -6,7 +6,14 @@ const CHECKBOXES = [
   ['bypass_cloudflare', 'Attempt Cloudflare bypass on navigation'],
   ['screenshots', 'Save a screenshot after every step'],
   ['enable_xvfb_virtual_display', 'Xvfb virtual display (headful-in-container)'],
+  ['human_mode', 'Humanized cursor movement (anti-detection)'],
+  ['google_referer', 'Navigate via a Google referer (anti-detection)'],
 ]
+
+const STEALTH_PRESET = {
+  human_mode: true, google_referer: true, block_images: false,
+  block_images_and_css: false, wait_for_complete_page_load: true,
+}
 
 export default function BotasaurusConfigForm({ value, onChange }) {
   const set = (key, val) => onChange({ ...value, [key]: val })
@@ -24,6 +31,12 @@ export default function BotasaurusConfigForm({ value, onChange }) {
 
   return (
     <div>
+      <div className="row" style={{ marginBottom: '0.6rem' }}>
+        <button type="button" className="secondary small"
+                onClick={() => onChange({ ...value, ...STEALTH_PRESET })}>
+          Apply max-stealth preset
+        </button>
+      </div>
       <div className="checkbox-grid">
         {CHECKBOXES.map(([key, label]) => (
           <label key={key} className="checkbox-row">

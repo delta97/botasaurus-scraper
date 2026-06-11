@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, usePolling } from '../api'
 import LlmCallCard from '../components/LlmCallCard'
@@ -13,11 +13,21 @@ export default function RunDetailPage() {
   const [recipeName, setRecipeName] = useState('')
   const [savedRecipeId, setSavedRecipeId] = useState(null)
   const [actionError, setActionError] = useState(null)
+  const [previousRunId, setPreviousRunId] = useState(null)
 
   const { data: run } = usePolling(() => api(`/api/runs/${id}`), 1500, true, [id])
   const live = run ? LIVE.includes(run.status) : true
   const { data: stepsData } = usePolling(() => api(`/api/runs/${id}/steps`), 1500, live, [id])
   const { data: llmData } = usePolling(() => api(`/api/runs/${id}/llm_calls`), 2500, live, [id])
+
+  // offer a diff against the previous run of the same recipe
+  useEffect(() => {
+    if (!run?.recipe_id) return
+    api(`/api/recipes/${run.recipe_id}`).then((recipe) => {
+      const prev = (recipe.replays || []).find((r) => r.run_id < run.id)
+      setPreviousRunId(prev ? prev.run_id : null)
+    }).catch(() => {})
+  }, [run?.recipe_id, run?.id])
 
   if (!run) return <p className="muted">Loading…</p>
   const result = run.result
@@ -46,6 +56,11 @@ export default function RunDetailPage() {
         <h2>Run #{run.id}</h2>
         <StatusBadge status={run.status} />
         <span className="spacer" />
+        {previousRunId && (
+          <Link to={`/runs/${previousRunId}/diff/${run.id}`}>
+            <button className="secondary small">Compare with run #{previousRunId}</button>
+          </Link>
+        )}
         {LIVE.includes(run.status) && (
           <button className="danger small" onClick={cancel}>Cancel</button>
         )}
