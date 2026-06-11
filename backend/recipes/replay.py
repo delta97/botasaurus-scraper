@@ -167,10 +167,15 @@ def replay_recipe(definition: dict, variables: Optional[dict] = None,
     outcome = {"success": True, "error": None, "extracts": {}, "steps_executed": 0,
                "heals": 0, "cancelled": False}
 
+    human_mode = bool(bota_cfg.get("human_mode"))
+    google_referer = bool(bota_cfg.get("google_referer"))
+
     @browser(**build_browser_kwargs(bota_cfg))
     def replay_task(driver, data):
+        if human_mode:
+            driver.enable_human_mode()
         executor = ActionExecutor(driver, screenshot_dir=screenshot_dir,
-                                  baseline_dir=baseline_dir)
+                                  baseline_dir=baseline_dir, google_referer=google_referer)
         for index, step in enumerate(steps):
             if should_cancel and should_cancel():
                 outcome["success"] = False

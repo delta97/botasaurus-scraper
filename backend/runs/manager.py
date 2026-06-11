@@ -148,6 +148,7 @@ class RunManager:
                     model = settings_store.get_model(session)
 
                 passed = failed = 0
+                chain = {}  # extracts from earlier recipes feed later ones' variables
                 for item in items:
                     if cancel_event.is_set():
                         break
@@ -156,7 +157,9 @@ class RunManager:
                         failed += 1
                         continue
                     definition = json.loads(recipe.definition)
-                    variables = json.loads(item.variables) if item.variables else {}
+                    # chained extracts are the base; the suite's explicit overrides win
+                    variables = {k: v for k, v in chain.items() if isinstance(v, str)}
+                    variables.update(json.loads(item.variables) if item.variables else {})
                     first_nav = next((s for s in definition.get("steps", [])
                                       if s.get("type") == "navigate"), None)
                     with db.SessionLocal() as session:
@@ -212,6 +215,9 @@ class RunManager:
                                                    "heals": outcome.get("heals", 0)})
                         child.finished_at = utcnow()
                         session.commit()
+                    # make this recipe's string extracts available to later ones
+                    chain.update({k: v for k, v in outcome["extracts"].items()
+                                  if isinstance(v, str)})
                     if outcome["success"]:
                         passed += 1
                     else:
@@ -243,6 +249,104 @@ class RunManager:
 
     def cancel_suite(self, suite_run_id) -> bool:
         return self.cancel(f"suite-{suite_run_id}")
+
+    def start_batch_run(self, batch_run_id):
+        """Dataset replay: one child Run per CSV row, sequentially, under one
+        semaphore hold. Each child is a normal replay with that row's variables."""
+        from ..models import BatchRun
+        from ..recipes.replay import replay_recipe
+        from .. import settings_store
+
+        key = f"batch-{batch_run_id}"
+        cancel_event = threading.Event()
+
+        def work():
+            with self._semaphore:
+                with db.SessionLocal() as session:
+                    batch = session.get(BatchRun, batch_run_id)
+                    batch.status = "running"
+                    batch.started_at = utcnow()
+                    session.commit()
+                    recipe = session.get(Recipe, batch.recipe_id)
+                    rows = json.loads(batch.rows) if batch.rows else []
+                    definition = json.loads(recipe.definition)
+                    api_key = settings_store.get_api_key(session)
+                    model = settings_store.get_model(session)
+                    self_heal = bool(recipe.self_heal) and bool(api_key)
+                    heal_mode = recipe.heal_mode or "propose"
+                    recipe_id = recipe.id
+
+                first_nav = next((s for s in definition.get("steps", [])
+                                  if s.get("type") == "navigate"), None)
+                succeeded = failed = 0
+                for i, row in enumerate(rows):
+                    if cancel_event.is_set():
+                        break
+                    with db.SessionLocal() as session:
+                        child = Run(kind="replay", goal=f"Dataset row {i + 1}/{len(rows)}",
+                                    start_url=(first_nav or {}).get("url", ""),
+                                    status="running", started_at=utcnow(),
+                                    botasaurus_config=json.dumps(definition.get("botasaurus", {})),
+                                    recipe_id=recipe_id, batch_run_id=batch_run_id)
+                        session.add(child)
+                        session.commit()
+                        child_id = child.id
+                    logger = StepLogger(child_id)
+
+                    def on_step(index, step, status, error, duration_ms, result, _l=logger):
+                        detail = getattr(result, "healed", None)
+                        _l.log_step(action=step.get("type"), status=status,
+                                    selector=(detail or {}).get("healed_selector") or step.get("selector"),
+                                    value=step.get("value") or step.get("label") or step.get("url"),
+                                    error=error, duration_ms=duration_ms,
+                                    screenshot_path=result.data if step.get("type") == "screenshot" else None,
+                                    detail=detail)
+
+                    heal = _build_heal_context(child_id, recipe_id, definition, self_heal,
+                                               heal_mode, api_key, model, logger)
+                    try:
+                        outcome = replay_recipe(
+                            definition, row, on_step=on_step, heal=heal,
+                            screenshot_dir=config.SCREENSHOT_DIR / str(child_id),
+                            should_cancel=cancel_event.is_set,
+                            baseline_dir=config.BASELINE_DIR / str(recipe_id))
+                    except Exception as exc:
+                        outcome = {"success": False, "cancelled": False, "extracts": {},
+                                   "steps_executed": 0, "heals": 0,
+                                   "error": f"{type(exc).__name__}: {exc}"}
+                    with db.SessionLocal() as session:
+                        child = session.get(Run, child_id)
+                        child.status = ("cancelled" if outcome.get("cancelled")
+                                        else "succeeded" if outcome["success"] else "failed")
+                        child.error = outcome["error"]
+                        child.result = json.dumps({"extracts": outcome["extracts"],
+                                                   "row": row,
+                                                   "steps_executed": outcome["steps_executed"]})
+                        child.finished_at = utcnow()
+                        session.commit()
+                    if outcome["success"]:
+                        succeeded += 1
+                    else:
+                        failed += 1
+
+                with db.SessionLocal() as session:
+                    batch = session.get(BatchRun, batch_run_id)
+                    batch.total = len(rows)
+                    batch.succeeded = succeeded
+                    batch.failed = failed
+                    batch.status = "cancelled" if cancel_event.is_set() else "done"
+                    batch.finished_at = utcnow()
+                    session.commit()
+                with self._lock:
+                    self._runs.pop(key, None)
+
+        thread = threading.Thread(target=work, daemon=True, name=key)
+        with self._lock:
+            self._runs[key] = {"thread": thread, "cancel": cancel_event, "started": time.time()}
+        thread.start()
+
+    def cancel_batch(self, batch_run_id) -> bool:
+        return self.cancel(f"batch-{batch_run_id}")
 
     def _spawn(self, run_id, target):
         cancel_event = threading.Event()

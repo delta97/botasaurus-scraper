@@ -31,6 +31,7 @@ class Run(Base):
     error = Column(Text)
     recipe_id = Column(Integer, ForeignKey("recipes.id"))
     suite_run_id = Column(Integer, ForeignKey("suite_runs.id"))  # set for suite children
+    batch_run_id = Column(Integer, ForeignKey("batch_runs.id"))  # set for dataset children
     total_prompt_tokens = Column(Integer, default=0)
     total_completion_tokens = Column(Integer, default=0)
     created_at = Column(Text, default=utcnow)
@@ -144,3 +145,30 @@ class SuiteRun(Base):
     created_at = Column(Text, default=utcnow)
     started_at = Column(Text)
     finished_at = Column(Text)
+
+
+class BatchRun(Base):
+    """A dataset replay: one parent that fans out to a child Run per CSV row."""
+    __tablename__ = "batch_runs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False, index=True)
+    status = Column(Text, nullable=False, default="queued")  # queued|running|done|cancelled
+    total = Column(Integer, default=0)
+    succeeded = Column(Integer, default=0)
+    failed = Column(Integer, default=0)
+    rows = Column(Text)  # JSON: list of per-row variable dicts
+    created_at = Column(Text, default=utcnow)
+    started_at = Column(Text)
+    finished_at = Column(Text)
+
+
+class Schedule(Base):
+    __tablename__ = "schedules"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False, index=True)
+    cron = Column(Text, nullable=False)  # 5-field cron expression
+    variables = Column(Text)  # JSON: variable overrides applied on each fire
+    enabled = Column(Integer, default=1)
+    last_run_at = Column(Text)
+    last_run_id = Column(Integer, ForeignKey("runs.id"))
+    created_at = Column(Text, default=utcnow)

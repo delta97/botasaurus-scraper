@@ -120,6 +120,25 @@ run on bot-protected sites; Botasaurus can):
 - **Failure webhooks** — set a webhook URL in Settings (Slack/Discord incoming
   webhooks work as-is) and a JSON summary is POSTed whenever a run or suite fails.
 
+### Datasets, scheduling & scale
+
+- **Datasets** — upload a CSV on a recipe's page (or `POST /api/recipes/{id}/batch/csv`).
+  Each row runs as its own replay with the row's columns mapped to `{{variables}}`;
+  results are browsable per row.
+- **Scheduler** — attach a cron expression to a recipe (Schedules section). The
+  in-app scheduler (APScheduler) fires while the studio is running; each fire is
+  a normal logged replay. The CLI + external cron remain available for headless
+  setups (`python -m backend.runner --recipe-id N`).
+- **Recipe chaining** — within a test suite, string values a recipe extracts
+  (`extract_text`/`extract_markdown` into a key) become available as
+  `{{variables}}` to the recipes that follow it.
+- **Stealth presets** — the Botasaurus config form has a "max-stealth" button and
+  toggles for humanized cursor movement (`enable_human_mode`) and Google-referer
+  navigation (`google_get`), on top of proxy / hashed user-agent / window-size.
+- **Profiles** — set a Chrome `profile` name to persist a logged-in session
+  across runs (record the login once, reuse the cookies) — the most
+  detection-resistant pattern.
+
 ### iframes & shadow DOM
 
 Steps carry an optional `frame_path` — an ordered list of selectors from the top

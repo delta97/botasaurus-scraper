@@ -27,10 +27,12 @@ class ExecResult:
 
 
 class ActionExecutor:
-    def __init__(self, driver, screenshot_dir=None, baseline_dir=None):
+    def __init__(self, driver, screenshot_dir=None, baseline_dir=None,
+                 google_referer=False):
         self.driver = driver
         self.screenshot_dir = screenshot_dir
         self.baseline_dir = baseline_dir  # visual-regression baselines
+        self.google_referer = google_referer  # navigate via Driver.google_get
         self.snapshot = None  # set by the agent loop after each snapshot
 
     def set_snapshot(self, snapshot):
@@ -100,7 +102,11 @@ class ActionExecutor:
 
     def _do_navigate(self, args):
         url = args["url"]
-        self.driver.get(url, bypass_cloudflare=bool(args.get("bypass_cloudflare")))
+        bypass = bool(args.get("bypass_cloudflare"))
+        if self.google_referer:
+            self.driver.google_get(url, bypass_cloudflare=bypass)
+        else:
+            self.driver.get(url, bypass_cloudflare=bypass)
         return ExecResult(ok=True, value=url)
 
     def _do_click(self, args):
